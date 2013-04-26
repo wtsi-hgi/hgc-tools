@@ -21,6 +21,7 @@ module Main where
   import System.Environment (getArgs)
 
   import Hgc.Cvmfs
+  import Hgc.Lxc
 
   data Options = Options {
       optPublish :: Bool -- ^ Automatically publish the CVMFS repo
