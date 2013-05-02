@@ -1,9 +1,10 @@
 -- Creates a new version of a template.
-Usage: hgc-version [Option...] template
-  -y             --publish                Automatically publish new version.
-  -M             --major                  Create a major revision.
-  -n NAME        --new-capsule=NAME       New capsule name.
-  -r REPOSITORY  --repository=REPOSITORY  Repository name (defaults to mercury.repo)
+
+> Usage: hgc-version [Option...] template
+>   -y             --publish                Automatically publish new version.
+>   -M             --major                  Create a major revision.
+>   -n NAME        --new-capsule=NAME       New capsule name.
+>   -r REPOSITORY  --repository=REPOSITORY  Repository name (defaults to mercury.repo)
 
 - If <newname> not set, increment a version number
 - Get repo
