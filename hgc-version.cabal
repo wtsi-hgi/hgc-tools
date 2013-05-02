@@ -49,11 +49,13 @@ executable hgc-version
   -- Modules included in this executable, other than Main.
   other-modules:  Hgc.Cvmfs
                 , Hgc.Lxc
+                , Hgc.Shell
   
   -- Other library packages from which modules are imported.
   build-depends:      base ==4.6.*,
                       containers,
                       filepath,
                       process,
-                      split
+                      split,
+                      random
   

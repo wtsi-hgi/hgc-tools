@@ -19,9 +19,13 @@ module Main where
   import Data.List.Split (splitOneOf)
   import System.Console.GetOpt
   import System.Environment (getArgs)
+  import System.Exit (ExitCode(..))
+  import System.FilePath
+  import System.Random (randomIO)
 
   import Hgc.Cvmfs
   import Hgc.Lxc
+  import Hgc.Shell
 
   data Options = Options {
       optPublish :: Bool -- ^ Automatically publish the CVMFS repo
@@ -75,8 +79,43 @@ module Main where
             [name] -> (name, 0, 0)
             (minor : major : name) -> 
               (intercalate "-" . reverse $ name, read major :: Int, read minor :: Int)
-          newname = case optNewCapsule opts of
-            Just n -> n
-            Nothing -> oldname
-          (major, minor) = if optMajorRevision opts then (oldmaj + 1, 0) else (oldmaj, oldmin + 1)
-          
+          (newname, major, minor) = case optNewCapsule opts of
+            Just n -> (n, oldmaj, oldmin)
+            Nothing -> if optMajorRevision opts 
+              then (oldname, oldmaj + 1, 0) 
+              else (oldname, oldmaj, oldmin + 1)
+
+  -- Copy the old capsule to a new version location
+  copyCapsule :: String -- ^ Old name
+              -> String -- ^ New name
+              -> FilePath -- ^ Repository location
+              -> IO ()
+  copyCapsule oldname newname repobase = cp oldloc newloc >>= \cpStatus ->
+    case cpStatus of
+      ExitSuccess -> return ()
+      ExitFailure r -> ioError . userError $ "Failure to copy capsule (exit code " ++ show r ++ ")."
+    where
+      oldloc = repobase </> oldname
+      newloc = repobase </> newname
+  
+  -- Copy the config file to a temporary location for modification
+  copyTemporaryConfig :: FilePath -- ^ Capsule location
+                      -> IO FilePath -- ^ location of the new configuration file.
+  copyTemporaryConfig capsule = (randomIO :: IO Int) >>= \rand ->
+    let newloc = "/tmp/config-" </> show rand
+        oldloc = capsule </> "config"
+    in cp oldloc newloc >>= \cpStatus ->
+      case cpStatus of
+        ExitSuccess -> return newloc
+        ExitFailure r -> ioError . userError $ "Failure to copy to temporary config (exit code " ++ show r ++ ")."
+
+  -- Update the config
+  updateConfig :: FilePath -- Capsule location
+               -> FilePath -- Config file location
+               -> IO ()
+  updateConfig capsule configloc = readConfig configloc >>= \c ->
+    writeConfig configloc $ update c
+    where update c = setConfig "lxc.rootfs" (capsule </> "rootfs") .
+                     setConfig "lxc.mount"  (capsule </> "fstab") $ c
+
+  -- Clean the template, removing specified cache directories (/var/cache/pacman etc)

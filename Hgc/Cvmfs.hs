@@ -2,7 +2,7 @@
 Handles CVMFS commands.
 -}
 module Hgc.Cvmfs where
-  import System.Process (rawSystem)
+  import System.Cmd (rawSystem)
   import System.Exit (ExitCode(..))
 
   -- | CVMFS Base directory
