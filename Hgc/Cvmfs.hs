@@ -10,7 +10,8 @@ module Hgc.Cvmfs where
   base = "/cvmfs"
 
   -- | Start a CVMFS transaction
-  transaction :: String -> IO ()
+  transaction :: String -- ^ repository name
+              -> IO ()
   transaction repo = rawSystem "cvmfs_server" ["transaction", repo] >>= \ex -> case ex of
     ExitSuccess -> return ()
     ExitFailure r -> ioError . userError $ "Cannot start transaction (exit code " ++ show r ++ ")."

@@ -22,9 +22,10 @@ module Main where
   import System.Exit (ExitCode(..))
   import System.FilePath
   import System.Random (randomIO)
+  import System.Directory (removeDirectoryRecursive)
 
-  import Hgc.Cvmfs
-  import Hgc.Lxc
+  import qualified Hgc.Cvmfs as Cvmfs
+  import qualified Hgc.Lxc as Lxc
   import Hgc.Shell
 
   data Options = Options {
@@ -68,7 +69,19 @@ module Main where
   doStuff :: String
           -> Options
           -> IO ()
-  doStuff capsule opts = putStrLn $ capsuleName capsule opts
+  doStuff oldname opts = do
+    Cvmfs.transaction repository
+    capsuleLoc <- copyCapsule oldname newname repositoryLoc
+    tmpConfig <- copyTemporaryConfig capsuleLoc
+    updateConfig newname capsuleLoc tmpConfig
+    Lxc.console newname tmpConfig
+    cleanCapsule capsuleLoc
+    Cvmfs.publish repository
+    where
+      repository = optRepository opts
+      repositoryLoc = Cvmfs.base </> repository
+      newname = capsuleName oldname opts
+
 
   -- TODO: replace with regex?
   capsuleName :: String -- ^ Old name
@@ -89,10 +102,10 @@ module Main where
   copyCapsule :: String -- ^ Old name
               -> String -- ^ New name
               -> FilePath -- ^ Repository location
-              -> IO ()
+              -> IO FilePath
   copyCapsule oldname newname repobase = cp oldloc newloc >>= \cpStatus ->
     case cpStatus of
-      ExitSuccess -> return ()
+      ExitSuccess -> return newloc
       ExitFailure r -> ioError . userError $ "Failure to copy capsule (exit code " ++ show r ++ ")."
     where
       oldloc = repobase </> oldname
@@ -110,12 +123,21 @@ module Main where
         ExitFailure r -> ioError . userError $ "Failure to copy to temporary config (exit code " ++ show r ++ ")."
 
   -- Update the config
-  updateConfig :: FilePath -- Capsule location
+  updateConfig :: String -- Capsule name
+               -> FilePath -- Capsule location
                -> FilePath -- Config file location
                -> IO ()
-  updateConfig capsule configloc = readConfig configloc >>= \c ->
-    writeConfig configloc $ update c
-    where update c = setConfig "lxc.rootfs" (capsule </> "rootfs") .
-                     setConfig "lxc.mount"  (capsule </> "fstab") $ c
+  updateConfig capsule capsuleLoc configloc = Lxc.readConfig configloc >>= \c ->
+    Lxc.writeConfig configloc $ update c
+    where update c = Lxc.setConfig "lxc.rootfs" (capsuleLoc </> "rootfs") .
+                     Lxc.setConfig "lxc.mount"  (capsuleLoc </> "fstab") .
+                     Lxc.setConfig "lxc.utsname" capsule $ c
 
   -- Clean the template, removing specified cache directories (/var/cache/pacman etc)
+  cleanCapsule :: FilePath -- Capsule location
+               -> IO ()
+  cleanCapsule capsule = 
+    let cacheDirs = [
+            "/var/cache/pacman/pkg"
+          ]
+    in mapM_ removeDirectoryRecursive $ map (\a -> capsule </> "rootfs" </> a) cacheDirs 

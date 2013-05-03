@@ -54,6 +54,7 @@ executable hgc-version
   -- Other library packages from which modules are imported.
   build-depends:      base ==4.6.*,
                       containers,
+                      directory,
                       filepath,
                       process,
                       split,
