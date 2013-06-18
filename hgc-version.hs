@@ -72,8 +72,7 @@ module Main where
   doStuff oldname opts = do
     Cvmfs.transaction repository
     capsuleLoc <- copyCapsule oldname newname repositoryLoc
-    tmpConfig <- copyTemporaryConfig capsuleLoc
-    updateConfig newname capsuleLoc tmpConfig
+    tmpConfig <- updateConfig newname capsuleLoc (capsuleLoc </> "config")
     Lxc.console newname tmpConfig
     cleanCapsule capsuleLoc
     Cvmfs.publish repository
@@ -111,28 +110,21 @@ module Main where
       oldloc = repobase </> oldname
       newloc = repobase </> newname
   
-  -- Copy the config file to a temporary location for modification
-  copyTemporaryConfig :: FilePath -- ^ Capsule location
-                      -> IO FilePath -- ^ location of the new configuration file.
-  copyTemporaryConfig capsule = (randomIO :: IO Int) >>= \rand ->
-    let newloc = "/tmp/config-" </> show rand
-        oldloc = capsule </> "config"
-    in cp oldloc newloc >>= \cpStatus ->
-      case cpStatus of
-        ExitSuccess -> return newloc
-        ExitFailure r -> ioError . userError $ "Failure to copy to temporary config (exit code " ++ show r ++ ")."
-
-  -- Update the config
+  -- Update the config to a temporary location.
   updateConfig :: String -- Capsule name
                -> FilePath -- Capsule location
                -> FilePath -- Config file location
-               -> IO ()
-  updateConfig capsule capsuleLoc configloc = Lxc.readConfig configloc >>= \c ->
-    Lxc.writeConfig configloc $ update c
+               -> IO FilePath -- Temporary config file location
+  updateConfig capsule capsuleLoc configloc = do
+    rand <- (randomIO :: IO Int)
+    let temploc = "/tmp/config-" ++ show rand
+    c <- Lxc.readConfig configloc
+    Lxc.writeConfig temploc $ update c
+    return temploc
     where update c = Lxc.setConfig "lxc.rootfs" (capsuleLoc </> "rootfs") .
                      Lxc.setConfig "lxc.mount"  (capsuleLoc </> "fstab") .
                      Lxc.setConfig "lxc.utsname" capsule $ c
-
+            
   -- Clean the template, removing specified cache directories (/var/cache/pacman etc)
   cleanCapsule :: FilePath -- Capsule location
                -> IO ()
@@ -140,4 +132,4 @@ module Main where
     let cacheDirs = [
             "/var/cache/pacman/pkg"
           ]
-    in mapM_ removeDirectoryRecursive $ map (\a -> capsule </> "rootfs" </> a) cacheDirs 
+    in mapM_ removeDirectoryRecursive $ map (\a -> capsule </> "rootfs" </> a) cacheDirs

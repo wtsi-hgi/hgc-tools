@@ -21,3 +21,10 @@ module Hgc.Cvmfs where
   publish repo = rawSystem "cvmfs_server" ["publish", repo] >>= \ex -> case ex of
     ExitSuccess -> return ()
     ExitFailure r -> ioError . userError $ "Cannot publish repo (exit code " ++ show r ++ ")."
+
+  -- | Abort a transaction on a CVMFS repository.
+  abort :: String -- ^ repository name
+        -> IO ()
+  abort repo = rawSystem "cvmfs_server" ["publish", repo] >>= \ex -> case ex of
+    ExitSuccess -> return ()
+    ExitFailure r -> ioError . userError $ "Cannot abort transaction (exit code " ++ show r ++ ")."
