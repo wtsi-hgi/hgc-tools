@@ -14,6 +14,7 @@ hg-version <oldname> [<newname>]
 -}
 
 module Main where
+  import Control.Monad (unless, filterM, liftM, join)
   import Data.Maybe (fromMaybe)
   import Data.List (intercalate)
   import Data.List.Split (splitOneOf)
@@ -22,7 +23,7 @@ module Main where
   import System.Exit (ExitCode(..))
   import System.FilePath
   import System.Random (randomIO)
-  import System.Directory (removeDirectoryRecursive)
+  import System.Directory (doesFileExist, removeDirectoryRecursive)
 
   import qualified Hgc.Cvmfs as Cvmfs
   import qualified Hgc.Lxc as Lxc
@@ -33,6 +34,7 @@ module Main where
     , optMajorRevision :: Bool -- ^ Create a new major revision
     , optNewCapsule :: Maybe String -- ^ Name for new capsule
     , optRepository :: String
+    , optCloneOnly :: Bool -- ^ Only clone the template, don't start as a capsule.
   }
 
   defaultOptions = Options {
@@ -40,6 +42,7 @@ module Main where
     , optMajorRevision = False
     , optNewCapsule = Nothing
     , optRepository = "mercury.repo"
+    , optCloneOnly = False
   }
 
   options :: [OptDescr (Options -> Options)]
@@ -53,6 +56,8 @@ module Main where
           "New capsule name."
       , Option ['r'] ["repository"] (ReqArg (\n o -> o { optRepository = n }) "REPOSITORY")
           "Repository name (defaults to mercury.repo)"
+      , Option [] ["clone-only"] (NoArg (\o -> o { optCloneOnly = True }))
+          "Only clone the template, don't start the capsule."
     ]
 
   usage :: String
@@ -69,15 +74,14 @@ module Main where
   doStuff :: String
           -> Options
           -> IO ()
-  doStuff oldname opts = do
-    Cvmfs.transaction repository
-    capsuleLoc <- copyCapsule oldname newname repositoryLoc
-    tmpConfig <- updateConfig newname capsuleLoc (capsuleLoc </> "config")
-    Lxc.console newname tmpConfig
-    cleanCapsule capsuleLoc
-    Cvmfs.publish repository
+  doStuff oldname opts = Cvmfs.inTransaction repository publish $ do
+      capsuleLoc <- copyCapsule oldname newname repositoryLoc
+      tmpConfig <- updateConfig newname capsuleLoc (capsuleLoc </> "config")
+      unless (optCloneOnly opts) $ Lxc.console newname tmpConfig
+      cleanCapsule capsuleLoc
     where
       repository = optRepository opts
+      publish = optPublish opts
       repositoryLoc = Cvmfs.base </> repository
       newname = capsuleName oldname opts
 
@@ -121,9 +125,9 @@ module Main where
     c <- Lxc.readConfig configloc
     Lxc.writeConfig temploc $ update c
     return temploc
-    where update c = Lxc.setConfig "lxc.rootfs" (capsuleLoc </> "rootfs") .
-                     Lxc.setConfig "lxc.mount"  (capsuleLoc </> "fstab") .
-                     Lxc.setConfig "lxc.utsname" capsule $ c
+    where update c = Lxc.setConfig "lxc.rootfs" [(capsuleLoc </> "rootfs")] .
+                     Lxc.setConfig "lxc.mount"  [(capsuleLoc </> "fstab")] .
+                     Lxc.setConfig "lxc.utsname" [capsule] $ c
             
   -- Clean the template, removing specified cache directories (/var/cache/pacman etc)
   cleanCapsule :: FilePath -- Capsule location
@@ -132,4 +136,5 @@ module Main where
     let cacheDirs = [
             "/var/cache/pacman/pkg"
           ]
-    in mapM_ removeDirectoryRecursive $ map (\a -> capsule </> "rootfs" </> a) cacheDirs
+    in join . (liftM $ mapM_ removeDirectoryRecursive) . filterM doesFileExist $ 
+      map (\a -> capsule </> "rootfs" </> a) cacheDirs
