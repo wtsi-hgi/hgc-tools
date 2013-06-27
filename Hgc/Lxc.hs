@@ -16,8 +16,6 @@ module Hgc.Lxc
   import Data.List (isPrefixOf, sortBy)
   import qualified Data.Map as Map
 
-  import Debug.Trace
-
   import System.Process
   import System.Exit
 

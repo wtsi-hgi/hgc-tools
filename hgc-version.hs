@@ -35,6 +35,8 @@ module Main where
     , optNewCapsule :: Maybe String -- ^ Name for new capsule
     , optRepository :: String
     , optCloneOnly :: Bool -- ^ Only clone the template, don't start as a capsule.
+    , optMount :: [FilePath] -- ^ Resources to mount in the capsule.
+    , optPkgSrcDir :: Maybe FilePath -- ^ Location to use for package source cache.
   }
 
   defaultOptions = Options {
@@ -43,6 +45,8 @@ module Main where
     , optNewCapsule = Nothing
     , optRepository = "mercury.repo"
     , optCloneOnly = False
+    , optMount = []
+    , optPkgSrcDir = Nothing
   }
 
   options :: [OptDescr (Options -> Options)]
@@ -58,6 +62,10 @@ module Main where
           "Repository name (defaults to mercury.repo)"
       , Option [] ["clone-only"] (NoArg (\o -> o { optCloneOnly = True }))
           "Only clone the template, don't start the capsule."
+      , Option ['m'] ["mount"] (ReqArg (\n o -> o { optMount = n : optMount o }) "MOUNT_POINT")
+          "Mount the specified resource into the capsult."
+      , Option ['p'] ["pkgdir"] (ReqArg (\n o -> o { optPkgSrcDir = Just n}) "PKGDIR")
+          "Use specified directory in place of the aura source package cache."
     ]
 
   usage :: String
