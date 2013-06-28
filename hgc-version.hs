@@ -14,16 +14,18 @@ hg-version <oldname> [<newname>]
 -}
 
 module Main where
+  import Prelude hiding (mapM)
   import Control.Monad (unless, filterM, liftM, join)
-  import Data.Maybe (fromMaybe)
+  import Data.Maybe (fromMaybe, maybeToList)
   import Data.List (intercalate)
   import Data.List.Split (splitOneOf)
+  import Data.Traversable (mapM)
   import System.Console.GetOpt
   import System.Environment (getArgs)
   import System.Exit (ExitCode(..))
   import System.FilePath
   import System.Random (randomIO)
-  import System.Directory (doesFileExist, removeDirectoryRecursive)
+  import System.Directory (canonicalizePath, doesFileExist, removeDirectoryRecursive)
 
   import qualified Hgc.Cvmfs as Cvmfs
   import qualified Hgc.Lxc as Lxc
@@ -84,7 +86,7 @@ module Main where
           -> IO ()
   doStuff oldname opts = Cvmfs.inTransaction repository publish $ do
       capsuleLoc <- copyCapsule oldname newname repositoryLoc
-      tmpConfig <- updateConfig newname capsuleLoc (capsuleLoc </> "config")
+      tmpConfig <- updateConfig newname capsuleLoc opts
       unless (optCloneOnly opts) $ Lxc.console newname tmpConfig
       cleanCapsule capsuleLoc
     where
@@ -125,18 +127,40 @@ module Main where
   -- Update the config to a temporary location.
   updateConfig :: String -- Capsule name
                -> FilePath -- Capsule location
-               -> FilePath -- Config file location
+               -> Options -- Options
                -> IO FilePath -- Temporary config file location
-  updateConfig capsule capsuleLoc configloc = do
+  updateConfig capsule capsuleLoc opts = do
     rand <- (randomIO :: IO Int)
-    let temploc = "/tmp/config-" ++ show rand
-    c <- Lxc.readConfig configloc
-    Lxc.writeConfig temploc $ update c
-    return temploc
-    where update c = Lxc.setConfig "lxc.rootfs" [(capsuleLoc </> "rootfs")] .
-                     Lxc.setConfig "lxc.mount"  [(capsuleLoc </> "fstab")] .
-                     Lxc.setConfig "lxc.utsname" [capsule] $ c
+    let tmpConfig = "/tmp/config-" ++ show rand
+    let tmpFstab = "/tmp/fstab-" ++ show rand
+    let update c =  Lxc.setConfig "lxc.rootfs" [(capsuleLoc </> "rootfs")] .
+                    Lxc.setConfig "lxc.mount"  [tmpFstab] .
+                    Lxc.setConfig "lxc.utsname" [capsule] $ c
+    writeFstab capsuleLoc tmpFstab opts
+    Lxc.readConfig configloc >>= Lxc.writeConfig tmpConfig . update
+    return tmpConfig
+    where 
+      configloc = (capsuleLoc </> "config")
             
+  -- Write the FSTAB for the capsule.
+  writeFstab :: FilePath -- ^ Capsule location.
+             -> FilePath -- ^ New fstab location
+             -> Options
+             -> IO ()
+  writeFstab capsuleLoc tmpFstab opts = do
+    pkgSrcMnt <- fmap (\a -> fmap (mkBindMount internalPkgSrcDir) a) 
+        . mapM canonicalizePath $ optPkgSrcDir opts
+    otherMounts <- fmap (\a -> fmap (mkBindMount internalMntDir) a)
+        . mapM canonicalizePath $ optMount opts
+    let mounts = (maybeToList pkgSrcMnt) ++ otherMounts
+    let writeMounts str = str ++ "\n" ++ unlines mounts
+    readFile fstabloc >>= writeFile tmpFstab . writeMounts
+    where
+      fstabloc = (capsuleLoc </> "fstab")
+      internalPkgSrcDir = capsuleLoc </> "rootfs/var/cache/aura/src"
+      internalMntDir = capsuleLoc </> "rootfs/mnt"
+      mkBindMount int ext = intercalate " " [ext, int, "none", "bind", "0", "0"]
+
   -- Clean the template, removing specified cache directories (/var/cache/pacman etc)
   cleanCapsule :: FilePath -- Capsule location
                -> IO ()
