@@ -25,7 +25,11 @@ module Main where
   import System.Exit (ExitCode(..))
   import System.FilePath
   import System.Random (randomIO)
-  import System.Directory (canonicalizePath, doesFileExist, removeDirectoryRecursive)
+  import System.Directory (canonicalizePath
+    , createDirectory
+    , doesFileExist
+    , doesDirectoryExist
+    , removeDirectoryRecursive)
 
   import qualified Hgc.Cvmfs as Cvmfs
   import qualified Hgc.Lxc as Lxc
@@ -150,8 +154,9 @@ module Main where
   writeFstab capsuleLoc tmpFstab opts = do
     pkgSrcMnt <- fmap (\a -> fmap (mkBindMount internalPkgSrcDir) a) 
         . mapM canonicalizePath $ optPkgSrcDir opts
-    otherMounts <- fmap (\a -> fmap (mkBindMount internalMntDir) a)
-        . mapM canonicalizePath $ optMount opts
+    otherMounts <- fmap (\a -> fmap mkMount a)
+        . mapM (\a -> mkMountPoint internalMntDir a) 
+        $ optMount opts
     let mounts = (maybeToList pkgSrcMnt) ++ otherMounts
     let writeMounts str = str ++ "\n" ++ unlines mounts
     readFile fstabloc >>= writeFile tmpFstab . writeMounts
@@ -160,6 +165,22 @@ module Main where
       internalPkgSrcDir = capsuleLoc </> "rootfs/var/cache/aura/src"
       internalMntDir = capsuleLoc </> "rootfs/mnt"
       mkBindMount int ext = intercalate " " [ext, int, "none", "bind", "0", "0"]
+      mkMount (a,b) = mkBindMount b a
+
+  -- Make a mount point in the container to mount on top of
+  mkMountPoint :: FilePath -- ^ Root mount point
+               -> FilePath -- ^ Thing to mount
+               -> IO (FilePath, FilePath) -- ^ resource, Created mountpoint
+  mkMountPoint mountLoc resource = do
+    resourceC <- canonicalizePath . dropTrailingPathSeparator $ resource
+    isDir <- doesDirectoryExist resourceC
+    isFile <- doesFileExist resourceC
+    let mp = mountLoc </> resource
+    mkdir $ mountLoc </> (dropFileName resourceC)
+    case (isDir, isFile) of
+      (False, True) -> touch mp >> return (resourceC, mp)
+      (True, False) -> mkdir mp >> return (resourceC, mp)
+      _ -> ioError . userError $ "Problem with mount point " ++ resource
 
   -- Clean the template, removing specified cache directories (/var/cache/pacman etc)
   cleanCapsule :: FilePath -- Capsule location
