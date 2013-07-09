@@ -38,7 +38,7 @@ module Hgc.Cvmfs where
                 -> IO a
   inTransaction repo pub action = catch op 
     (\e -> abort repo >> 
-      hPutStr stderr "Failure: aborting transaction." >> 
+      hPutStr stderr "Failure! Attempting to abort transaction." >> 
       ioError e)
     where op = transaction repo >>
                 action >>= \result -> 

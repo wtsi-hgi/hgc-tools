@@ -59,24 +59,25 @@ module Main where
   options =
     [
         Option ['y'] ["publish"] (NoArg (\o -> o { optPublish = True })) 
-          "Automatically publish new version."
+          "Automatically publish new capsule."
       , Option ['M'] ["major"] (NoArg (\o -> o { optMajorRevision = True })) 
           "Create a major revision."
       , Option ['n'] ["new-capsule"] (ReqArg (\n o -> o { optNewCapsule = Just n }) "NAME") 
-          "New capsule name."
+          "Create a capsule under a new name."
       , Option ['r'] ["repository"] (ReqArg (\n o -> o { optRepository = n }) "REPOSITORY")
-          "Repository name (defaults to mercury.repo)"
+          "Use the specified repository name (defaults to mercury.repo)."
       , Option [] ["clone-only"] (NoArg (\o -> o { optCloneOnly = True }))
           "Only clone the template, don't start the capsule."
       , Option ['m'] ["mount"] (ReqArg (\n o -> o { optMount = n : optMount o }) "MOUNT_POINT")
-          "Mount the specified resource into the capsult."
+          "Mount the specified resource into the capsule."
       , Option ['p'] ["pkgdir"] (ReqArg (\n o -> o { optPkgSrcDir = Just n}) "PKGDIR")
           "Use specified directory in place of the aura source package cache."
     ]
 
   usage :: String
   usage = usageInfo header options
-    where header = "Usage: hgc-version [Option...] template"
+    where header = "Create a new version of a Mercury capsule based on the specified template.\n" ++
+                    "Usage: hgc-version [Option...] template"
 
   main :: IO ()
   main = do
@@ -123,7 +124,7 @@ module Main where
   copyCapsule oldname newname repobase = cp oldloc newloc >>= \cpStatus ->
     case cpStatus of
       ExitSuccess -> return newloc
-      ExitFailure r -> ioError . userError $ "Failure to copy capsule (exit code " ++ show r ++ ")."
+      ExitFailure r -> ioError . userError $ "Failed to copy capsule (exit code " ++ show r ++ ")."
     where
       oldloc = repobase </> oldname
       newloc = repobase </> newname
@@ -180,7 +181,10 @@ module Main where
     case (isDir, isFile) of
       (False, True) -> touch mp >> return (resourceC, mp)
       (True, False) -> mkdir mp >> return (resourceC, mp)
-      _ -> ioError . userError $ "Problem with mount point " ++ resource
+      (True, True) -> ioError . userError $ 
+        "Really weird: mount point is both file and directory: " ++ resource
+      (False, False) -> ioError . userError $ 
+        "Mount point does not exist or cannot be read: " ++ resource
 
   -- Clean the template, removing specified cache directories (/var/cache/pacman etc)
   cleanCapsule :: FilePath -- Capsule location
