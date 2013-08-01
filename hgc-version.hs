@@ -191,7 +191,8 @@ module Main where
                -> IO ()
   cleanCapsule capsule = 
     let cacheDirs = [
-            "/var/cache/pacman/pkg"
+              "/var/cache/pacman/pkg"
+            , "/var/log"
           ]
     in join . (liftM $ mapM_ removeDirectoryRecursive) . filterM doesFileExist $ 
       map (\a -> capsule </> "rootfs" </> a) cacheDirs
