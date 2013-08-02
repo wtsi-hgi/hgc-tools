@@ -1,10 +1,16 @@
 -- Creates a new version of a template.
 
-    Usage: hgc-version [Option...] template
-       -y             --publish                Automatically publish new version.
-       -M             --major                  Create a major revision.
-       -n NAME        --new-capsule=NAME       New capsule name.
-       -r REPOSITORY  --repository=REPOSITORY  Repository name (defaults to mercury.repo)
+	Create a new version of a Mercury capsule based on the specified template.
+	Usage: hgc-version [Option...] template
+	                  --amend                  Amend the current capsule rather than creating a new one.
+	                  --clone-only             Only clone the template, don't start the capsule.
+	  -m MOUNT_POINT  --mount=MOUNT_POINT      Mount the specified resource into the capsule.
+	  -M              --major                  Create a major revision.
+	  -n NAME         --new-capsule=NAME       Create a capsule under a new name.
+	  -p PKGDIR       --pkgdir=PKGDIR          Use specified directory in place of the aura source package cache.
+	  -r REPOSITORY   --repository=REPOSITORY  Use the specified repository name (defaults to mercury.repo).
+	  -v              --verbose                Enable verbose output.
+	  -y              --publish                Automatically publish new capsule.
 
 - If <newname> not set, increment a version number
 - Get repo
