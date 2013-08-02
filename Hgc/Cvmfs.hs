@@ -7,6 +7,7 @@ module Hgc.Cvmfs where
   import System.Exit (ExitCode(..))
   import Control.Exception (catch)
   import Control.Monad (when)
+  import System.Log.Logger
 
   -- | CVMFS Base directory
   base :: FilePath
@@ -38,7 +39,7 @@ module Hgc.Cvmfs where
                 -> IO a
   inTransaction repo pub action = catch op 
     (\e -> abort repo >> 
-      hPutStr stderr "Failure! Attempting to abort transaction." >> 
+      errorM "hgc-version.cvmfs" "Failure! Attempting to abort transaction." >> 
       ioError e)
     where op = transaction repo >>
                 action >>= \result -> 

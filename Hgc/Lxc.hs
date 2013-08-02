@@ -18,6 +18,7 @@ module Hgc.Lxc
 
   import System.Process
   import System.Exit
+  import System.Log.Logger
 
   type Config = Map.Map String [String]
 
@@ -55,10 +56,12 @@ module Hgc.Lxc
   writeConfig :: FilePath -- ^ Config location
               -> Config -- ^ Config 
               -> IO ()
-  writeConfig fp config = writeFile fp str where
-    str = unlines . bind (\(a,b) -> map (\c -> a ++ "=" ++ c) b) . 
-      sortBy sortConfigItem . Map.toList $ config
-    bind = flip (>>=)
+  writeConfig fp config = do
+    debugM "hgc-version.lxc" $ "Writing config file to " ++ fp
+    writeFile fp str where
+      str = unlines . bind (\(a,b) -> map (\c -> a ++ "=" ++ c) b) . 
+        sortBy sortConfigItem . Map.toList $ config
+      bind = flip (>>=)
 
   -- | Set a config option. This overwrites all config options for that key.
   setConfig :: String -- ^ Key
@@ -88,4 +91,4 @@ module Hgc.Lxc
                   ExitSuccess -> return ()
                   ExitFailure r -> ioError . userError $ 
                     "Cannot start console (exit code " ++ show r ++ ")."
-    in start >> console'
+    in debugM "hgc-version.lxc" "Starting LXC console" >> start >> console'

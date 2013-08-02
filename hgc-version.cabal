@@ -43,6 +43,7 @@ cabal-version:       >=1.8
 
 
 executable hgc-version
+  ghc-options:  -Wall
   -- .hs or .lhs file containing the Main module.
   main-is: hgc-version.hs
   
@@ -56,6 +57,7 @@ executable hgc-version
                       containers,
                       directory,
                       filepath,
+                      hslogger,
                       process,
                       split,
                       random

@@ -15,8 +15,8 @@ hg-version <oldname> [<newname>]
 
 module Main where
   import Prelude hiding (mapM)
-  import Control.Monad (unless, filterM, liftM, join)
-  import Data.Maybe (fromMaybe, maybeToList)
+  import Control.Monad (when, unless, filterM, liftM, join)
+  import Data.Maybe (maybeToList)
   import Data.List (intercalate)
   import Data.List.Split (splitOneOf)
   import Data.Traversable (mapM)
@@ -26,10 +26,10 @@ module Main where
   import System.FilePath
   import System.Random (randomIO)
   import System.Directory (canonicalizePath
-    , createDirectory
     , doesFileExist
     , doesDirectoryExist
     , removeDirectoryRecursive)
+  import System.Log.Logger
 
   import qualified Hgc.Cvmfs as Cvmfs
   import qualified Hgc.Lxc as Lxc
@@ -43,8 +43,10 @@ module Main where
     , optCloneOnly :: Bool -- ^ Only clone the template, don't start as a capsule.
     , optMount :: [FilePath] -- ^ Resources to mount in the capsule.
     , optPkgSrcDir :: Maybe FilePath -- ^ Location to use for package source cache.
+    , optVerbose :: Bool
   }
 
+  defaultOptions :: Options
   defaultOptions = Options {
       optPublish = False
     , optMajorRevision = False
@@ -53,6 +55,7 @@ module Main where
     , optCloneOnly = False
     , optMount = []
     , optPkgSrcDir = Nothing
+    , optVerbose = False
   }
 
   options :: [OptDescr (Options -> Options)]
@@ -72,6 +75,8 @@ module Main where
           "Mount the specified resource into the capsule."
       , Option ['p'] ["pkgdir"] (ReqArg (\n o -> o { optPkgSrcDir = Just n}) "PKGDIR")
           "Use specified directory in place of the aura source package cache."
+      , Option ['v'] ["verbose"] (NoArg (\o -> o  { optVerbose = True }))
+          "Enable verbose logging."
     ]
 
   usage :: String
@@ -84,14 +89,18 @@ module Main where
     args <- getArgs
     case (getOpt Permute options args) of
       (o,[f],[]) -> doStuff f (foldl (flip id) defaultOptions o)
-      (_,_,errs) -> putStrLn (concat errs ++ usage)
+      (_,_,errs) -> putStrLn (concat errs ++ "\n" ++ usage)
 
   doStuff :: String
           -> Options
           -> IO ()
-  doStuff oldname opts = Cvmfs.inTransaction repository publish $ do
+  doStuff oldname opts = do
+    when (optVerbose opts) $ updateGlobalLogger "hgc-version" (setLevel DEBUG)
+    Cvmfs.inTransaction repository publish $ do
       capsuleLoc <- copyCapsule oldname newname repositoryLoc
+      debugM "hgc-version" $ "New capsule location: " ++ capsuleLoc
       tmpConfig <- updateConfig newname capsuleLoc opts
+      debugM "hgc-version" $ "Config location: " ++ tmpConfig
       unless (optCloneOnly opts) $ Lxc.console newname tmpConfig
       cleanCapsule capsuleLoc
     where
@@ -121,7 +130,9 @@ module Main where
               -> String -- ^ New name
               -> FilePath -- ^ Repository location
               -> IO FilePath
-  copyCapsule oldname newname repobase = cp oldloc newloc >>= \cpStatus ->
+  copyCapsule oldname newname repobase =
+    debugM "hgc-version" ("Copying " ++ oldname ++ " to " ++ newname ++ " in repository " ++ repobase) >>
+    cp oldloc newloc >>= \cpStatus ->
     case cpStatus of
       ExitSuccess -> return newloc
       ExitFailure r -> ioError . userError $ "Failed to copy capsule (exit code " ++ show r ++ ")."
@@ -136,8 +147,8 @@ module Main where
                -> IO FilePath -- Temporary config file location
   updateConfig capsule capsuleLoc opts = do
     rand <- (randomIO :: IO Int)
-    let tmpConfig = "/tmp/config-" ++ show rand
-    let tmpFstab = "/tmp/fstab-" ++ show rand
+    let tmpConfig = "/tmp/config-" ++ capsule ++ show rand
+    let tmpFstab = "/tmp/fstab-" ++ capsule ++ show rand
     let update c =  Lxc.setConfig "lxc.rootfs" [(capsuleLoc </> "rootfs")] .
                     Lxc.setConfig "lxc.mount"  [tmpFstab] .
                     Lxc.setConfig "lxc.utsname" [capsule] $ c
@@ -159,6 +170,7 @@ module Main where
         . mapM (\a -> mkMountPoint internalMntDir a) 
         $ optMount opts
     let mounts = (maybeToList pkgSrcMnt) ++ otherMounts
+    mapM_ (debugM "hgc-version" . (\a -> "Mount point: " ++ a)) mounts
     let writeMounts str = str ++ "\n" ++ unlines mounts
     readFile fstabloc >>= writeFile tmpFstab . writeMounts
     where
@@ -179,8 +191,10 @@ module Main where
     let mp = mountLoc </> resource
     mkdir $ mountLoc </> (dropFileName resourceC)
     case (isDir, isFile) of
-      (False, True) -> touch mp >> return (resourceC, mp)
-      (True, False) -> mkdir mp >> return (resourceC, mp)
+      (False, True) -> debugM "hgc-version" ("Touching file mountpoint " ++ resourceC) >>
+        touch mp >> return (resourceC, mp)
+      (True, False) -> debugM "hgc-version" ("Making directory mountpoint " ++ resourceC) >>
+        mkdir mp >> return (resourceC, mp)
       (True, True) -> ioError . userError $ 
         "Really weird: mount point is both file and directory: " ++ resource
       (False, False) -> ioError . userError $ 
@@ -191,8 +205,17 @@ module Main where
                -> IO ()
   cleanCapsule capsule = 
     let cacheDirs = [
-              "/var/cache/pacman/pkg"
-            , "/var/log"
+              "var/cache/pacman/pkg"
+            , "var/log"
           ]
-    in join . (liftM $ mapM_ removeDirectoryRecursive) . filterM doesFileExist $ 
-      map (\a -> capsule </> "rootfs" </> a) cacheDirs
+        rmdir dir = do
+          debugM "hgc-version" $ "Removing directory " ++ dir
+          removeDirectoryRecursive dir
+        isDir dir = do
+          exists <- doesDirectoryExist dir
+          unless (exists) $ debugM "hgc-version" $ "Directory " ++ dir ++ " does not exist."
+          return exists
+    in do 
+      debugM "hgc-version" ("Cleaning capsule " ++ capsule)
+      join . (liftM $ mapM_ rmdir) . filterM isDir $ 
+        map (\a -> capsule </> "rootfs" </> a) cacheDirs
