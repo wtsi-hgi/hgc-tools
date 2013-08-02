@@ -63,24 +63,24 @@ module Main where
   options :: [OptDescr (Options -> Options)]
   options =
     [
-        Option ['y'] ["publish"] (NoArg (\o -> o { optPublish = True })) 
-          "Automatically publish new capsule."
-      , Option ['M'] ["major"] (NoArg (\o -> o { optMajorRevision = True })) 
-          "Create a major revision."
-      , Option ['n'] ["new-capsule"] (ReqArg (\n o -> o { optNewCapsule = Just n }) "NAME") 
-          "Create a capsule under a new name."
-      , Option ['r'] ["repository"] (ReqArg (\n o -> o { optRepository = n }) "REPOSITORY")
-          "Use the specified repository name (defaults to mercury.repo)."
+        Option [] ["amend"] (NoArg (\o -> o { optAmend = True }))
+          "Amend the current capsule rather than creating a new one."
       , Option [] ["clone-only"] (NoArg (\o -> o { optCloneOnly = True }))
           "Only clone the template, don't start the capsule."
       , Option ['m'] ["mount"] (ReqArg (\n o -> o { optMount = n : optMount o }) "MOUNT_POINT")
           "Mount the specified resource into the capsule."
+      , Option ['M'] ["major"] (NoArg (\o -> o { optMajorRevision = True })) 
+          "Create a major revision."
+      , Option ['n'] ["new-capsule"] (ReqArg (\n o -> o { optNewCapsule = Just n }) "NAME") 
+          "Create a capsule under a new name."
       , Option ['p'] ["pkgdir"] (ReqArg (\n o -> o { optPkgSrcDir = Just n}) "PKGDIR")
           "Use specified directory in place of the aura source package cache."
+      , Option ['r'] ["repository"] (ReqArg (\n o -> o { optRepository = n }) "REPOSITORY")
+          "Use the specified repository name (defaults to mercury.repo)."
       , Option ['v'] ["verbose"] (NoArg (\o -> o  { optVerbose = True }))
           "Enable verbose output."
-      , Option ['a'] ["amend"] (NoArg (\o -> o { optAmend = True }))
-          "Amend the current capsule rather than creating a new one."
+      , Option ['y'] ["publish"] (NoArg (\o -> o { optPublish = True })) 
+          "Automatically publish new capsule."
     ]
 
   usage :: String
