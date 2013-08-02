@@ -219,6 +219,7 @@ module Main where
         rmdir dir = do
           debugM "hgc-version" $ "Removing directory " ++ dir
           removeDirectoryRecursive dir
+          mkdir dir
         isDir dir = do
           exists <- doesDirectoryExist dir
           unless (exists) $ debugM "hgc-version" $ "Directory " ++ dir ++ " does not exist."
