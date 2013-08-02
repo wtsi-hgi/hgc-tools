@@ -44,6 +44,7 @@ module Main where
     , optMount :: [FilePath] -- ^ Resources to mount in the capsule.
     , optPkgSrcDir :: Maybe FilePath -- ^ Location to use for package source cache.
     , optVerbose :: Bool
+    , optAmend :: Bool
   }
 
   defaultOptions :: Options
@@ -56,6 +57,7 @@ module Main where
     , optMount = []
     , optPkgSrcDir = Nothing
     , optVerbose = False
+    , optAmend = False
   }
 
   options :: [OptDescr (Options -> Options)]
@@ -76,7 +78,9 @@ module Main where
       , Option ['p'] ["pkgdir"] (ReqArg (\n o -> o { optPkgSrcDir = Just n}) "PKGDIR")
           "Use specified directory in place of the aura source package cache."
       , Option ['v'] ["verbose"] (NoArg (\o -> o  { optVerbose = True }))
-          "Enable verbose logging."
+          "Enable verbose output."
+      , Option ['a'] ["amend"] (NoArg (\o -> o { optAmend = True }))
+          "Amend the current capsule rather than creating a new one."
     ]
 
   usage :: String
@@ -97,8 +101,11 @@ module Main where
   doStuff oldname opts = do
     when (optVerbose opts) $ updateGlobalLogger "hgc-version" (setLevel DEBUG)
     Cvmfs.inTransaction repository publish $ do
-      capsuleLoc <- copyCapsule oldname newname repositoryLoc
-      debugM "hgc-version" $ "New capsule location: " ++ capsuleLoc
+      capsuleLoc <- if (amend) then 
+          return $ repositoryLoc </> oldname
+        else 
+          copyCapsule oldname newname repositoryLoc
+      debugM "hgc-version" $ "Capsule location: " ++ capsuleLoc
       tmpConfig <- updateConfig newname capsuleLoc opts
       debugM "hgc-version" $ "Config location: " ++ tmpConfig
       unless (optCloneOnly opts) $ Lxc.console newname tmpConfig
@@ -106,8 +113,9 @@ module Main where
     where
       repository = optRepository opts
       publish = optPublish opts
+      amend = optAmend opts
       repositoryLoc = Cvmfs.base </> repository
-      newname = capsuleName oldname opts
+      newname = if amend then oldname else capsuleName oldname opts
 
 
   -- TODO: replace with regex?
