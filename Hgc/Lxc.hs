@@ -57,7 +57,7 @@ module Hgc.Lxc
               -> Config -- ^ Config 
               -> IO ()
   writeConfig fp config = do
-    debugM "hgc-version.lxc" $ "Writing config file to " ++ fp
+    debugM "hgc.lxc" $ "Writing config file to " ++ fp
     writeFile fp str where
       str = unlines . bind (\(a,b) -> map (\c -> a ++ "=" ++ c) b) . 
         sortBy sortConfigItem . Map.toList $ config
@@ -91,4 +91,4 @@ module Hgc.Lxc
                   ExitSuccess -> return ()
                   ExitFailure r -> ioError . userError $ 
                     "Cannot start console (exit code " ++ show r ++ ")."
-    in debugM "hgc-version.lxc" "Starting LXC console" >> start >> console'
+    in debugM "hgc.lxc" "Starting LXC console" >> start >> console'

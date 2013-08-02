@@ -26,7 +26,6 @@ module Main where
   import System.FilePath
   import System.Random (randomIO)
   import System.Directory (canonicalizePath
-    , doesFileExist
     , doesDirectoryExist
     , removeDirectoryRecursive)
   import System.Log.Logger
@@ -34,6 +33,7 @@ module Main where
   import qualified Hgc.Cvmfs as Cvmfs
   import qualified Hgc.Lxc as Lxc
   import Hgc.Shell
+  import Hgc.Mount
 
   data Options = Options {
       optPublish :: Bool -- ^ Automatically publish the CVMFS repo
@@ -99,15 +99,15 @@ module Main where
           -> Options
           -> IO ()
   doStuff oldname opts = do
-    when (optVerbose opts) $ updateGlobalLogger "hgc-version" (setLevel DEBUG)
+    when (optVerbose opts) $ updateGlobalLogger "hgc" (setLevel DEBUG)
     Cvmfs.inTransaction repository publish $ do
       capsuleLoc <- if (amend) then 
           return $ repositoryLoc </> oldname
         else 
           copyCapsule oldname newname repositoryLoc
-      debugM "hgc-version" $ "Capsule location: " ++ capsuleLoc
+      debugM "hgc" $ "Capsule location: " ++ capsuleLoc
       tmpConfig <- updateConfig newname capsuleLoc opts
-      debugM "hgc-version" $ "Config location: " ++ tmpConfig
+      debugM "hgc" $ "Config location: " ++ tmpConfig
       unless (optCloneOnly opts) $ Lxc.console newname tmpConfig
       cleanCapsule capsuleLoc
     where
@@ -139,7 +139,7 @@ module Main where
               -> FilePath -- ^ Repository location
               -> IO FilePath
   copyCapsule oldname newname repobase =
-    debugM "hgc-version" ("Copying " ++ oldname ++ " to " ++ newname ++ " in repository " ++ repobase) >>
+    debugM "hgc" ("Copying " ++ oldname ++ " to " ++ newname ++ " in repository " ++ repobase) >>
     cp oldloc newloc >>= \cpStatus ->
     case cpStatus of
       ExitSuccess -> return newloc
@@ -178,7 +178,7 @@ module Main where
         . mapM (\a -> mkMountPoint internalMntDir a) 
         $ optMount opts
     let mounts = (maybeToList pkgSrcMnt) ++ otherMounts
-    mapM_ (debugM "hgc-version" . (\a -> "Mount point: " ++ a)) mounts
+    mapM_ (debugM "hgc" . (\a -> "Mount point: " ++ a)) mounts
     let writeMounts str = str ++ "\n" ++ unlines mounts
     readFile fstabloc >>= writeFile tmpFstab . writeMounts
     where
@@ -187,26 +187,6 @@ module Main where
       internalMntDir = capsuleLoc </> "rootfs/mnt"
       mkBindMount int ext = intercalate " " [ext, int, "none", "bind", "0", "0"]
       mkMount (a,b) = mkBindMount b a
-
-  -- Make a mount point in the container to mount on top of
-  mkMountPoint :: FilePath -- ^ Root mount point
-               -> FilePath -- ^ Thing to mount
-               -> IO (FilePath, FilePath) -- ^ resource, Created mountpoint
-  mkMountPoint mountLoc resource = do
-    resourceC <- canonicalizePath . dropTrailingPathSeparator $ resource
-    isDir <- doesDirectoryExist resourceC
-    isFile <- doesFileExist resourceC
-    let mp = mountLoc </> resource
-    mkdir $ mountLoc </> (dropFileName resourceC)
-    case (isDir, isFile) of
-      (False, True) -> debugM "hgc-version" ("Touching file mountpoint " ++ resourceC) >>
-        touch mp >> return (resourceC, mp)
-      (True, False) -> debugM "hgc-version" ("Making directory mountpoint " ++ resourceC) >>
-        mkdir mp >> return (resourceC, mp)
-      (True, True) -> ioError . userError $ 
-        "Really weird: mount point is both file and directory: " ++ resource
-      (False, False) -> ioError . userError $ 
-        "Mount point does not exist or cannot be read: " ++ resource
 
   -- Clean the template, removing specified cache directories (/var/cache/pacman etc)
   cleanCapsule :: FilePath -- Capsule location
@@ -217,14 +197,14 @@ module Main where
             , "var/log"
           ]
         rmdir dir = do
-          debugM "hgc-version" $ "Removing directory " ++ dir
+          debugM "hgc" $ "Removing directory " ++ dir
           removeDirectoryRecursive dir
           mkdir dir
         isDir dir = do
           exists <- doesDirectoryExist dir
-          unless (exists) $ debugM "hgc-version" $ "Directory " ++ dir ++ " does not exist."
+          unless (exists) $ debugM "hgc" $ "Directory " ++ dir ++ " does not exist."
           return exists
     in do 
-      debugM "hgc-version" ("Cleaning capsule " ++ capsule)
+      debugM "hgc" ("Cleaning capsule " ++ capsule)
       join . (liftM $ mapM_ rmdir) . filterM isDir $ 
         map (\a -> capsule </> "rootfs" </> a) cacheDirs

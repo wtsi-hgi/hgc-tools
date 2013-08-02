@@ -3,7 +3,6 @@ Handles CVMFS commands.
 -}
 module Hgc.Cvmfs where
   import System.Cmd (rawSystem)
-  import System.IO (hPutStr, stderr)
   import System.Exit (ExitCode(..))
   import Control.Exception (catch)
   import Control.Monad (when)
