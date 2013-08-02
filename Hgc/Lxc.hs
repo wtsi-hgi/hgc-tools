@@ -9,7 +9,6 @@ module Hgc.Lxc
     , console
     )
   where
-  import Control.Monad (liftM)
   import Data.Maybe (mapMaybe)
   import Data.List.Split (splitOn)
   import Data.Char (isSpace)
@@ -34,6 +33,7 @@ module Hgc.Lxc
     ) . filter (\a -> not $ isPrefixOf "#" a) . map (dropWhile isSpace) . lines
 
   -- | Sort the config items (some of the network stuff relies on order!)
+  sortConfigItem :: (String, t) -> (String, t1) -> Ordering
   sortConfigItem (k1, _) (k2, _)
     | p1 < p2 = LT
     | p1 >= p2 = GT
