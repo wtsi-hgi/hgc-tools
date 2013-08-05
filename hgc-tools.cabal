@@ -55,10 +55,12 @@ executable hgc-version
   
   -- Other library packages from which modules are imported.
   build-depends:      base ==4.6.*,
+                      bytestring,
                       containers,
                       directory,
                       filepath,
                       hslogger,
+                      linux-mount,
                       process,
                       split,
                       random
@@ -67,6 +69,13 @@ executable hgc-deploy
   ghc-options: -Wall
   main-is: hgc-deploy.hs
 
-  other-modules:
+  other-modules:  Hgc.Union
+                , Hgc.Mount
 
-  build-depends:      base >=4.6
+  build-depends:      base >=4.6,
+                      bytestring,
+                      hslogger,
+                      linux-mount,
+                      mtl,
+                      random,
+                      unix

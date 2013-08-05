@@ -1,12 +1,51 @@
-module Hgc.Mount 
-  (mkMountPoint)
+module Hgc.Mount (
+    mkMountPoint
+  , mkFstabEntry
+  , mount
+  , SLM.umount
+  , SLM.MountFlag(..)
+  )
 where
   import System.Log.Logger
   import System.Directory (canonicalizePath
     , doesFileExist
     , doesDirectoryExist)
   import System.FilePath
+  import qualified System.Linux.Mount as SLM
+  
+  import Data.List (intercalate)
+  import Data.Maybe (catMaybes)
+  import qualified Data.ByteString.Char8 as B (pack)
+
   import Hgc.Shell
+
+  data Mount = Mount 
+    String -- ^ Mount from
+    FilePath -- ^ Mount to
+    String -- ^ Mount type
+    [SLM.MountFlag] -- ^ System independent mount options
+    [String] -- ^ System dependent mount options
+
+  -- | Convert SML option to a string suitable for use in 
+  slmOptionString :: SLM.MountFlag -> Maybe String
+  slmOptionString opt = case opt of
+    SLM.Rdonly -> Just "ro"
+    SLM.Remount -> Just "remount"
+    SLM.Noatime -> Just "noatime"
+    SLM.Bind -> Just "bind" 
+    _ -> Nothing
+
+  -- | Mount a filesystem.
+  mount :: Mount -> IO() 
+  mount (Mount from to typ opt1 opt2) =
+    mkdir to >>
+    SLM.mount from to typ opt1 dd
+    where dd = B.pack . intercalate "," $ opt2
+
+  mkFstabEntry :: Mount -> String
+  mkFstabEntry (Mount from to typ opt1 opt2) =
+    intercalate " " [from, to, typ, intercalate "," opts, "0", "0"]
+    where opts = (catMaybes $ map slmOptionString opt1) ++ opt2
 
   -- Make a mount point in the container to mount on top of
   mkMountPoint :: FilePath -- ^ Root mount point
