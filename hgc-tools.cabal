@@ -74,8 +74,13 @@ executable hgc-deploy
 
   build-depends:      base >=4.6,
                       bytestring,
+                      containers,
+                      directory,
+                      filepath,
                       hslogger,
                       linux-mount,
                       mtl,
+                      process,
                       random,
+                      split,
                       unix

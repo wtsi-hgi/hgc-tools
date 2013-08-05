@@ -4,6 +4,7 @@ module Hgc.Mount (
   , mount
   , SLM.umount
   , SLM.MountFlag(..)
+  , Mount (..)
   )
 where
   import System.Log.Logger
