@@ -21,5 +21,5 @@ module Hgc.Union where
   overlayfs :: Union
   overlayfs = Union {
       name = "overlayfs"
-    , format = printf "lowerdir=,upperdir="
+    , format = printf "lowerdir=%s,upperdir=%s"
   }
