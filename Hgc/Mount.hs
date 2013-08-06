@@ -57,11 +57,11 @@ where
     isDir <- doesDirectoryExist resourceC
     isFile <- doesFileExist resourceC
     let mp = mountLoc </> resource
-    mkdir $ mountLoc </> (dropFileName resourceC)
+    mkdir $ mountLoc </> (dropFileName resource)
     case (isDir, isFile) of
-      (False, True) -> debugM "hgc.mount" ("Touching file mountpoint " ++ resourceC) >>
+      (False, True) -> debugM "hgc.mount" ("Touching file mountpoint " ++ mp) >>
         touch mp >> return (resourceC, mp)
-      (True, False) -> debugM "hgc.mount" ("Making directory mountpoint " ++ resourceC) >>
+      (True, False) -> debugM "hgc.mount" ("Making directory mountpoint " ++ mp) >>
         mkdir mp >> return (resourceC, mp)
       (True, True) -> ioError . userError $ 
         "Really weird: mount point is both file and directory: " ++ resource
