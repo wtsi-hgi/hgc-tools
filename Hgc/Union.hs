@@ -15,7 +15,7 @@ module Hgc.Union where
   aufs :: Union
   aufs = Union {
       name = "aufs"
-    , format = printf "br=%s=ro:%s=rw"
+    , format = \u l -> printf "dirs=%s:%s" l u
   }
 
   overlayfs :: Union

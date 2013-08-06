@@ -2,7 +2,7 @@ module Hgc.Mount (
     mkMountPoint
   , mkFstabEntry
   , mount
-  , SLM.umount
+  , umount
   , SLM.MountFlag(..)
   , Mount (..)
   )
@@ -38,10 +38,17 @@ where
 
   -- | Mount a filesystem.
   mount :: Mount -> IO() 
-  mount (Mount from to typ opt1 opt2) =
+  mount m @ (Mount from to typ opt1 opt2) =
+    debugM "hgc.mount" ("Mounting: " ++ mkFstabEntry m) >>
     mkdir to >>
     SLM.mount from to typ opt1 dd
     where dd = B.pack . intercalate "," $ opt2
+
+  -- | Unmount a filesystem.
+  umount :: Mount -> IO ()
+  umount m@(Mount _ to _ _ _) = 
+    debugM "hgc.mount" ("Unmounting: " ++ mkFstabEntry m) >>
+    SLM.umount to
 
   mkFstabEntry :: Mount -> String
   mkFstabEntry (Mount from to typ opt1 opt2) =

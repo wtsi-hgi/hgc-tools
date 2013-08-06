@@ -7,7 +7,7 @@ Steps involved:
 1. Become root.
 2. Create temporary directories.
 3. Modify the config and fstab.
-4. Establish a bind mount for the root filesystem.
+4. Establish a union mount for the root filesystem.
 5. Modify the contents of the capsule to add the external user as an autologin.
 6. Run the capsule in daemon mode.
 7. Connect to the capsule using lxc-console.
@@ -17,6 +17,7 @@ Steps involved:
 
 module Main where
   import Control.Applicative
+  import Control.Concurrent
   import Control.Exception (bracket)
   import Control.Monad.Reader
   import System.Console.GetOpt
@@ -57,8 +58,8 @@ module Main where
     , optScratchPath = "/tmp/hgc"
   }
 
-  options :: [OptDescr (Options -> Options)]
-  options =
+  setOptions :: [OptDescr (Options -> Options)]
+  setOptions =
     [
         Option ['m'] ["mount"] (ReqArg (\n o -> o { optMount = n : optMount o }) "RESOURCE")
           "Load the specified resource into the capsule."
@@ -73,14 +74,14 @@ module Main where
             setUnionType o _ = o
 
   usage :: String
-  usage = usageInfo header options
+  usage = usageInfo header setOptions
     where header = "Launch a Mercury capsule.\n" ++
                     "Usage: hgc-deploy [Option...] capsule"
 
   main :: IO ()
   main = do
     args <- getArgs
-    case (getOpt Permute options args) of
+    case (getOpt Permute setOptions args) of
       (o,[f],[]) -> runEnv (deploy f) (foldl (flip id) defaultOptions o)
       (_,_,errs) -> putStrLn (concat errs ++ "\n" ++ usage)
 
@@ -89,27 +90,32 @@ module Main where
   deploy capsule = ask >>= \options -> do
     liftIO $ when (optVerbose options) $ updateGlobalLogger "hgc" (setLevel DEBUG)
     liftIO $ debugM "hgc" $ "Cloning capsule " ++ capsule
-    (uuid, clonePath) <- cloneCapsule capsule
+    let sourcePath = Cvmfs.base </> (optRepository options) </> capsule
+    (uuid, clonePath) <- cloneCapsule capsule sourcePath
+    withRoot $ 
+      withUnionMount (sourcePath </> "rootfs") clonePath $ 
+      withCapsule uuid (clonePath </> "config") $
+      liftIO $ threadDelay 1000000 >> Lxc.console uuid 1
     return ()
 
   -- | Clone the capsule into a temporary location.
-  cloneCapsule :: String -- ^ Name of the capsule.
+  cloneCapsule :: String -- ^ Name of the capsule template.
+               -> FilePath -- ^ Location of the capsule template.
                -> Env (String, FilePath) -- ^ Capsule name, Location on system of the capsule.
-  cloneCapsule capsule = ask >>= \options -> do
+  cloneCapsule capsule sourcePath = ask >>= \options -> do
     uuid <- liftIO $ do
       rand <- liftM abs (randomIO :: IO Int)
       un <- User.getLoginName
-      return $ un ++ "-" ++ capsule ++ "-" ++ (show rand)
+      return $ un ++ "_" ++ capsule ++ "_" ++ (show rand)
     liftIO $ debugM "hgc" $ "Setting unique capsule ID to " ++ uuid
     let clonePath = (optScratchPath options) </> uuid
-    let sourcePath = Cvmfs.base </> (optRepository options) </> capsule
     liftIO $ debugM "hgc" $ "Source path: " ++ sourcePath ++ "\nClone path: " ++ clonePath
     liftIO . mkdir $ clonePath
-    liftIO $ writeConfig uuid sourcePath clonePath
-    liftIO $ writeFstab uuid clonePath (optMount options)
+    liftIO $ writeConfig uuid clonePath
+    liftIO $ writeFstab clonePath (optMount options)
     return (uuid, clonePath)
     where
-      writeConfig uuid sourcePath clonePath = 
+      writeConfig uuid clonePath = 
         Lxc.readConfig sourceConf >>= Lxc.writeConfig cloneConf . update
         where 
           update c = Lxc.setConfig "lxc.rootfs" [clonePath </> "image"] .
@@ -117,11 +123,47 @@ module Main where
                      Lxc.setConfig "lxc.utsname" [uuid] $ c
           sourceConf = sourcePath </> "config"
           cloneConf = clonePath </> "config"
-      writeFstab sourcePath clonePath mounts' = do
+      writeFstab clonePath mounts' = do
         mounts <- fmap (\a -> fmap (mkFstabEntry . mkBindMount) a) . 
           mapM (\a -> mkMountPoint internalMntDir a) $ mounts'
         readFile (sourcePath </> "fstab") >>= 
           writeFile (clonePath </> "fstab") . writeMounts mounts
-        where internalMntDir = clonePath </> "/scratch/mnt"
+        where internalMntDir = clonePath </> "scratch/mnt"
               mkBindMount (e,i) = Mount e i "none" [Bind] []
               writeMounts mounts str = str ++ "\n" ++ unlines mounts
+
+  -- | Perform the given operation with seteuid root.
+  withRoot :: Env a -> Env a
+  withRoot f = ask >>= \options -> liftIO $ 
+    User.getRealUserID >>= \uid -> 
+    bracket
+      (User.setUserID 0)
+      (\_ -> User.setUserID uid)
+      (\_ -> runEnv f options)
+
+  -- | Perform the given operation in a union mount.
+  withUnionMount :: FilePath -- ^ Lower (ro) dir.
+                 -> FilePath -- ^ Clone path.
+                 -> Env a -- ^ Operation to perform in union mount.
+                 -> Env a -- ^ Result.
+  withUnionMount sourcePath clonePath f = ask >>= \options -> do
+    let unionfs = optUnionType options
+    let union = Mount "none" image (Union.name unionfs) [] [Union.format unionfs sourcePath scratch]
+    liftIO $ do
+      mkdir $ scratch -- rw dir
+      mkdir $ image -- union dir
+    liftIO $ bracket
+      (mount union)
+      (\_ -> umount union)
+      (\_ -> runEnv f options)
+    where
+      scratch =  clonePath </> "scratch"
+      image = clonePath </> "image"
+
+  -- | Perform the given operation with a running capsule.
+  withCapsule :: String -- ^ Capsule name.
+              -> FilePath -- ^ Config file location.
+              -> Env a -- ^ Operation to perform with running capsule.
+              -> Env a
+  withCapsule capsule config f = ask >>= \options ->
+    liftIO $ Lxc.withContainerDaemon capsule config (runEnv f options)
