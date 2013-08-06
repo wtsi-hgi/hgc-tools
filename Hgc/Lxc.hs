@@ -7,8 +7,11 @@ module Hgc.Lxc
     , setConfig
     , addConfig
     , console
+    , withContainerDaemon
+    , startConsole
     )
   where
+  import Control.Exception (bracket)
   import Data.Maybe (mapMaybe)
   import Data.List.Split (splitOn)
   import Data.Char (isSpace)
@@ -77,12 +80,46 @@ module Hgc.Lxc
             -> Config
   addConfig k v c = Map.adjust (\a -> v : a) k c
 
+  {- | Start the container and execute the given operation with it running.
+       Typically you would start the console and this will ensure that the container
+       gets stopped when you detatch from the console.
+  -}
+  withContainerDaemon :: String -- ^ Name of the LXC container
+            -> FilePath -- ^ Configuration file
+            -> IO a -- ^ Operation to perform with the LXC container running.
+            -> IO a
+  withContainerDaemon capsule config f =
+    let start = rawSystem "lxc-start" ["-n", capsule, "-f", config, "-d"] >>= \s -> case s of
+              ExitSuccess -> return ()
+              ExitFailure r -> ioError . userError $ 
+                "Cannot start capsule (exit code " ++ show r ++ ")."
+        stop = rawSystem "lxc-stop" ["-n", capsule] >>= \s -> case s of
+              ExitSuccess -> return ()
+              ExitFailure r -> ioError . userError $ 
+                "Cannot stop capsule (exit code " ++ show r ++ ")."
+    in bracket 
+        (debugM "hgc.lxc" ("Starting LXC container " ++ capsule) >> start)
+        (\_ -> debugM "hgc.lxc" ("Stopping LXC container " ++ capsule) >> stop) 
+        (\_ -> f)
+
+  console :: String -- ^ Container name.
+          -> Int -- ^ TTY to attach to.
+          -> IO ()
+  console capsule tty = 
+    debugM "hgc.lxc"  ("Attaching lxc-console to " ++ capsule) >>
+    rawSystem "lxc-console" ["-n", capsule, "-t", show tty] >>= \s -> case s of
+      ExitSuccess -> return ()
+      ExitFailure r -> ioError . userError $ 
+        "Cannot start console (exit code " ++ show r ++ ")."
+
   -- | Run the LXC container and attach to it using lxc-console.
   --   Should wait until the container shuts down.
-  console :: String -- ^ Name of the LXC container
+  --   This is not terribly safe and should be removed in favour of approaches
+  --   that cleanly stop the capsule on abnormal termination.
+  startConsole :: String -- ^ Name of the LXC container
           -> FilePath -- ^ Configuration file
           -> IO ()
-  console capsule config = 
+  startConsole capsule config = 
     let start = rawSystem "lxc-start" ["-n", capsule, "-f", config, "-d"] >>= \s -> case s of
                   ExitSuccess -> return ()
                   ExitFailure r -> ioError . userError $ 

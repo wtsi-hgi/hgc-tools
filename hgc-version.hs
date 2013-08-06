@@ -108,7 +108,7 @@ module Main where
       debugM "hgc" $ "Capsule location: " ++ capsuleLoc
       tmpConfig <- updateConfig newname capsuleLoc opts
       debugM "hgc" $ "Config location: " ++ tmpConfig
-      unless (optCloneOnly opts) $ Lxc.console newname tmpConfig
+      unless (optCloneOnly opts) $ Lxc.startConsole newname tmpConfig
       cleanCapsule capsuleLoc
     where
       repository = optRepository opts
