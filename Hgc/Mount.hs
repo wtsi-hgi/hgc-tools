@@ -58,7 +58,7 @@ where
   -- Make a mount point in the container to mount on top of
   mkMountPoint :: FilePath -- ^ Root mount point
                -> FilePath -- ^ Thing to mount
-               -> IO (FilePath, FilePath) -- ^ resource, Created mountpoint
+               -> IO (FilePath, FilePath) -- ^ Canoncal resource path, Created mountpoint relative to root
   mkMountPoint mountLoc resource = do
     resourceC <- canonicalizePath . dropTrailingPathSeparator $ resource
     isDir <- doesDirectoryExist resourceC
@@ -67,10 +67,10 @@ where
     mkdir $ mountLoc </> (dropFileName resource)
     case (isDir, isFile) of
       (False, True) -> debugM "hgc.mount" ("Touching file mountpoint " ++ mp) >>
-        touch mp >> return (resourceC, mp)
+        touch mp >> return (resourceC, resource)
       (True, False) -> debugM "hgc.mount" ("Making directory mountpoint " ++ mp) >>
-        mkdir mp >> return (resourceC, mp)
+        mkdir mp >> return (resourceC, resource)
       (True, True) -> ioError . userError $ 
-        "Really weird: mount point is both file and directory: " ++ resource
+        "Really weird: mount point is both file and directory: " ++ resourceC
       (False, False) -> ioError . userError $ 
-        "Mount point does not exist or cannot be read: " ++ resource
+        "Mount point does not exist or cannot be read: " ++ resourceC

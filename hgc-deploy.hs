@@ -125,11 +125,12 @@ module Main where
           cloneConf = clonePath </> "config"
       writeFstab clonePath mounts' = do
         mounts <- fmap (\a -> fmap (mkFstabEntry . mkBindMount) a) . 
-          mapM (\a -> mkMountPoint internalMntDir a) $ mounts'
+          mapM (\a -> mkMountPoint scratchMntDir a) $ mounts'
         readFile (sourcePath </> "fstab") >>= 
           writeFile (clonePath </> "fstab") . writeMounts mounts
-        where internalMntDir = clonePath </> "scratch/mnt"
-              mkBindMount (e,i) = Mount e i "none" [Bind] []
+        where scratchMntDir = clonePath </> "scratch/mnt"
+              imageMntDir = clonePath </> "image/mnt"
+              mkBindMount (e,i) = Mount e (imageMntDir </> i) "none" [Bind] []
               writeMounts mounts str = str ++ "\n" ++ unlines mounts
 
   -- | Perform the given operation with seteuid root.
