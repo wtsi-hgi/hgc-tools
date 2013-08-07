@@ -93,10 +93,7 @@ module Hgc.Lxc
               ExitSuccess -> return ()
               ExitFailure r -> ioError . userError $ 
                 "Cannot start capsule (exit code " ++ show r ++ ")."
-        stop = rawSystem "lxc-stop" ["-n", capsule] >>= \s -> case s of
-              ExitSuccess -> return ()
-              ExitFailure r -> ioError . userError $ 
-                "Cannot stop capsule (exit code " ++ show r ++ ")."
+        stop = rawSystem "lxc-stop" ["-n", capsule]
     in bracket 
         (debugM "hgc.lxc" ("Starting LXC container " ++ capsule) >> start)
         (\_ -> debugM "hgc.lxc" ("Stopping LXC container " ++ capsule) >> stop) 
