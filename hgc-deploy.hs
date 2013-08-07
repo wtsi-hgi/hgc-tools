@@ -12,7 +12,8 @@ Steps involved:
 6. Run the capsule in daemon mode.
 7. Connect to the capsule using lxc-console.
 8. Stop the capsule using lxc-stop.
-9. 
+9. Unmount the union filesystem.
+10. Clean up the temporary directory?
 -}
 
 module Main where
@@ -20,12 +21,17 @@ module Main where
   import Control.Concurrent
   import Control.Exception (bracket)
   import Control.Monad.Reader
+  import Data.List (intercalate)
   import System.Console.GetOpt
   import System.FilePath ((</>))
   import System.Environment (getArgs)
+  import System.IO
   import System.Log.Logger
+  import qualified System.Posix.Files as Files
+  import System.Posix.Types (UserID)
   import qualified System.Posix.User as User
   import System.Random (randomIO)
+  import Text.Printf (printf)
 
   import qualified Hgc.Cvmfs as Cvmfs
   import qualified Hgc.Lxc as Lxc
@@ -90,12 +96,14 @@ module Main where
   deploy capsule = ask >>= \options -> do
     liftIO $ when (optVerbose options) $ updateGlobalLogger "hgc" (setLevel DEBUG)
     liftIO $ debugM "hgc" $ "Cloning capsule " ++ capsule
+    realUserID <- liftIO $ User.getRealUserID
     let sourcePath = Cvmfs.base </> (optRepository options) </> capsule
     (uuid, clonePath) <- cloneCapsule capsule sourcePath
     withRoot $ 
-      withUnionMount (sourcePath </> "rootfs") clonePath $ 
-      withCapsule uuid (clonePath </> "config") $
-      liftIO $ threadDelay 1000000 >> Lxc.console uuid 1
+      withUnionMount (sourcePath </> "rootfs") clonePath $ do
+        addUser realUserID clonePath
+        withCapsule uuid (clonePath </> "config") $
+          liftIO $ threadDelay 1000000 >> Lxc.console uuid 1
     return ()
 
   -- | Clone the capsule into a temporary location.
@@ -160,6 +168,32 @@ module Main where
     where
       scratch =  clonePath </> "scratch"
       image = clonePath </> "image"
+
+  {- | Adds the given user into the capsule environment by:
+        - Adding entries to the /usr/passwd and /usr/shadow files.
+        - Creating a home directory.
+  -}
+  addUser :: UserID
+          -> FilePath -- ^ Clone path.
+          -> Env ()
+  addUser uid clonePath = do
+    liftIO $ debugM "hgc" $ "Adding user with ID " ++ (show uid) ++ " into container."
+    ue <- liftIO $ User.getUserEntryForID uid
+    let username = User.userName ue
+        intHomedir = "/home" </> username
+        extHomedir = clonePath </> "image" ++ intHomedir -- intHomeDir is absolute, so </> fails
+        newue = ue { User.homeDirectory = intHomedir }
+    liftIO $ do
+      debugM "hgc" $ printf "Username: %s\nHomedir: %s" username intHomedir
+      mkdir extHomedir
+      Files.setOwnerAndGroup extHomedir uid (-1)
+      withFile (clonePath </> "image/etc/passwd") AppendMode (\h ->
+        let pwentry = mkPasswdEntry newue in 
+          debugM "hgc" ("Adding passwd entry: " ++ pwentry) >>
+          hPutStrLn h pwentry
+        )
+    where mkPasswdEntry (User.UserEntry n p i g ge h s) =
+            intercalate ":" [n,p,show i,show g,ge,h,s] 
 
   -- | Perform the given operation with a running capsule.
   withCapsule :: String -- ^ Capsule name.
