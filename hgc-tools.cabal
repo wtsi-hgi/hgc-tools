@@ -43,7 +43,7 @@ cabal-version:       >=1.8
 
 
 executable hgc-version
-  ghc-options:  -Wall
+  ghc-options:  -Wall -fno-warn-name-shadowing
   -- .hs or .lhs file containing the Main module.
   main-is: hgc-version.hs
   
