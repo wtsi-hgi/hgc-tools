@@ -20,6 +20,7 @@ module Main where
   import Control.Applicative
   import Control.Concurrent
   import Control.Exception (bracket)
+  import System.Exit (ExitCode(..))
   import Control.Monad.Reader
   import Data.List (intercalate)
   import System.Console.GetOpt
@@ -53,6 +54,7 @@ module Main where
     , optVerbose :: Bool
     , optUnionType :: Union.Union
     , optScratchPath :: FilePath -- ^ Location on the system to run the capsule in.
+    , optAutologinVar :: String -- ^ Placeholder for autologin username
   }
 
   defaultOptions :: Options
@@ -62,6 +64,7 @@ module Main where
     , optVerbose = False
     , optUnionType = Union.aufs
     , optScratchPath = "/tmp/hgc"
+    , optAutologinVar = "root"
   }
 
   setOptions :: [OptDescr (Options -> Options)]
@@ -102,6 +105,7 @@ module Main where
     withRoot $ 
       withUnionMount (sourcePath </> "rootfs") clonePath $ do
         addUser realUserID clonePath
+        setAutologinUser realUserID clonePath
         withCapsule uuid (clonePath </> "config") $
           liftIO $ threadDelay 1000000 >> Lxc.console uuid 1
     return ()
@@ -192,8 +196,31 @@ module Main where
           debugM "hgc" ("Adding passwd entry: " ++ pwentry) >>
           hPutStrLn h pwentry
         )
+      withFile (clonePath </> "image/etc/shadow") AppendMode (\h ->
+        let pwentry = mkShadowEntry newue in 
+          debugM "hgc" ("Adding shadow entry: " ++ pwentry) >>
+          hPutStrLn h pwentry
+        )
     where mkPasswdEntry (User.UserEntry n p i g ge h s) =
             intercalate ":" [n,p,show i,show g,ge,h,s] 
+          mkShadowEntry (User.UserEntry n _ _ _ _ _ _) =
+            n ++ ":*:::::::"
+
+  -- | Set the autologin user.
+  setAutologinUser :: UserID
+                   -> FilePath -- ^ Clone path.
+                   -> Env ()
+  setAutologinUser uid clonePath = ask >>= \options -> do
+    ue <- liftIO $ User.getUserEntryForID uid
+    let username = User.userName ue
+    liftIO $ safeSystem "sed" [
+        "-i"
+      , "s/" ++ (optAutologinVar options) ++ "/" ++ username ++ "/"
+      , clonePath </> "image/etc/systemd/system/autologin@.service"
+      ] >>= \ex -> case ex of
+        ExitSuccess -> return ()
+        ExitFailure r -> ioError . userError $ 
+          "Cannot set autologin user (exit code " ++ show r ++ ")."
 
   -- | Perform the given operation with a running capsule.
   withCapsule :: String -- ^ Capsule name.

@@ -8,17 +8,15 @@ module Hgc.Shell (
     , mkdir
     , safeSystem
   ) where 
-  import System.Cmd
   import System.Exit
   import System.Directory
-  import System.Posix.Files
   import System.Process
 
   cp :: FilePath -> FilePath -> IO ExitCode
-  cp src dest = rawSystem "cp" ["-r", src, dest]
+  cp src dest = safeSystem "cp" ["-r", src, dest]
 
-  touch :: FilePath -> IO ()
-  touch = touchFile 
+  touch :: FilePath -> IO ExitCode
+  touch f = safeSystem "touch" [f]
 
   mkdir :: FilePath -> IO ()
   mkdir = createDirectoryIfMissing True
