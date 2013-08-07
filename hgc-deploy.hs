@@ -34,6 +34,7 @@ module Main where
   import System.Random (randomIO)
   import Text.Printf (printf)
 
+  import qualified Hgcdeploy.Config as Cnf
   import qualified Hgc.Cvmfs as Cvmfs
   import qualified Hgc.Lxc as Lxc
   import Hgc.Mount
@@ -53,8 +54,6 @@ module Main where
     , optMount :: [FilePath] -- ^ Resources to mount in the capsule.
     , optVerbose :: Bool
     , optUnionType :: Union.Union
-    , optScratchPath :: FilePath -- ^ Location on the system to run the capsule in.
-    , optAutologinVar :: String -- ^ Placeholder for autologin username
   }
 
   defaultOptions :: Options
@@ -63,8 +62,6 @@ module Main where
     , optMount = []
     , optVerbose = False
     , optUnionType = Union.aufs
-    , optScratchPath = "/tmp/hgc"
-    , optAutologinVar = "root"
   }
 
   setOptions :: [OptDescr (Options -> Options)]
@@ -120,7 +117,7 @@ module Main where
       un <- User.getLoginName
       return $ un ++ "_" ++ capsule ++ "_" ++ (show rand)
     liftIO $ debugM "hgc" $ "Setting unique capsule ID to " ++ uuid
-    let clonePath = (optScratchPath options) </> uuid
+    let clonePath = Cnf.runPath </> uuid
     liftIO $ debugM "hgc" $ "Source path: " ++ sourcePath ++ "\nClone path: " ++ clonePath
     liftIO . mkdir $ clonePath
     liftIO $ writeConfig uuid clonePath
@@ -140,8 +137,8 @@ module Main where
           mapM (\a -> mkMountPoint scratchMntDir a) $ mounts'
         readFile (sourcePath </> "fstab") >>= 
           writeFile (clonePath </> "fstab") . writeMounts mounts
-        where scratchMntDir = clonePath </> "scratch/mnt"
-              imageMntDir = clonePath </> "image/mnt"
+        where scratchMntDir = clonePath </> Cnf.scratch </> "mnt"
+              imageMntDir = clonePath </> Cnf.image </> "mnt"
               mkBindMount (e,i) = Mount e (imageMntDir </> i) "none" [Bind] []
               writeMounts mounts str = str ++ "\n" ++ unlines mounts
 
@@ -163,15 +160,14 @@ module Main where
     let unionfs = optUnionType options
     let union = Mount "none" image (Union.name unionfs) [] [Union.format unionfs sourcePath scratch]
     liftIO $ do
-      mkdir $ scratch -- rw dir
-      mkdir $ image -- union dir
+      mkdir $ Cnf.scratch -- rw dir
+      mkdir $ Cnf.image -- union dir
     liftIO $ bracket
       (mount union)
       (\_ -> umount union)
       (\_ -> runEnv f options)
-    where
-      scratch =  clonePath </> "scratch"
-      image = clonePath </> "image"
+    where image = clonePath </> Cnf.image
+          scratch = clonePath </> Cnf.scratch
 
   {- | Adds the given user into the capsule environment by:
         - Adding entries to the /usr/passwd and /usr/shadow files.
@@ -191,12 +187,12 @@ module Main where
       debugM "hgc" $ printf "Username: %s\nHomedir: %s" username intHomedir
       mkdir extHomedir
       Files.setOwnerAndGroup extHomedir uid (-1)
-      withFile (clonePath </> "image/etc/passwd") AppendMode (\h ->
+      withFile (clonePath </> Cnf.passwdFile) AppendMode (\h ->
         let pwentry = mkPasswdEntry newue in 
           debugM "hgc" ("Adding passwd entry: " ++ pwentry) >>
           hPutStrLn h pwentry
         )
-      withFile (clonePath </> "image/etc/shadow") AppendMode (\h ->
+      withFile (clonePath </> Cnf.shadowFile) AppendMode (\h ->
         let pwentry = mkShadowEntry newue in 
           debugM "hgc" ("Adding shadow entry: " ++ pwentry) >>
           hPutStrLn h pwentry
@@ -210,13 +206,13 @@ module Main where
   setAutologinUser :: UserID
                    -> FilePath -- ^ Clone path.
                    -> Env ()
-  setAutologinUser uid clonePath = ask >>= \options -> do
+  setAutologinUser uid clonePath = do
     ue <- liftIO $ User.getUserEntryForID uid
     let username = User.userName ue
     liftIO $ safeSystem "sed" [
         "-i"
-      , "s/" ++ (optAutologinVar options) ++ "/" ++ username ++ "/"
-      , clonePath </> "image/etc/systemd/system/autologin@.service"
+      , "s/" ++ Cnf.autologinVar ++ "/" ++ username ++ "/"
+      , clonePath </> Cnf.autologinFile
       ] >>= \ex -> case ex of
         ExitSuccess -> return ()
         ExitFailure r -> ioError . userError $ 

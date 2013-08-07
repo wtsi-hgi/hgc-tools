@@ -70,8 +70,11 @@ executable hgc-deploy
   ghc-options: -Wall
   main-is: hgc-deploy.hs
 
-  other-modules:  Hgc.Union
+  other-modules:  Hgc.Lxc
+                , Hgc.Union
                 , Hgc.Mount
+                , Hgc.Shell
+                , Hgcdeploy.Config
 
   build-depends:      base >=4.6,
                       bytestring,
