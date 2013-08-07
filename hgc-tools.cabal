@@ -63,7 +63,8 @@ executable hgc-version
                       linux-mount,
                       process,
                       split,
-                      random
+                      random,
+                      unix
   
 executable hgc-deploy
   ghc-options: -Wall
