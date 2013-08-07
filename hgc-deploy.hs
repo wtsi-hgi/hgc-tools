@@ -71,10 +71,10 @@ module Main where
           "Load the specified resource into the capsule."
       , Option ['r'] ["repository"] (ReqArg (\n o -> o { optRepository = n }) "REPOSITORY")
           "Use the specified repository name (defaults to mercury.repo)."
-      , Option ['v'] ["verbose"] (NoArg (\o -> o  { optVerbose = True }))
-          "Enable verbose output."
       , Option ['t'] ["union-type"] (ReqArg (\n o -> setUnionType o n) "UNION_TYPE")
           "Set the type of filesystem used to implement the union mount. Currently supported are aufs and overlayfs."
+      , Option ['v'] ["verbose"] (NoArg (\o -> o  { optVerbose = True }))
+          "Enable verbose output."   
     ] where setUnionType o "aufs" = o { optUnionType = Union.aufs }
             setUnionType o "overlayfs" = o { optUnionType = Union.overlayfs }
             setUnionType o _ = o
