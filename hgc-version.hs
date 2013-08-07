@@ -186,7 +186,7 @@ module Main where
       internalPkgSrcDir = capsuleLoc </> "rootfs/var/cache/aura/src"
       internalMntDir = capsuleLoc </> "rootfs/mnt"
       mkBindMount int ext = intercalate " " [ext, int, "none", "bind", "0", "0"]
-      mkMount (a,b) = mkBindMount b (internalMntDir </> a)
+      mkMount (a,b) = mkBindMount (internalMntDir </> b) a
 
   -- Clean the template, removing specified cache directories (/var/cache/pacman etc)
   cleanCapsule :: FilePath -- Capsule location
