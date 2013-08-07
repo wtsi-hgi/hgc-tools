@@ -1,4 +1,8 @@
--- Creates a new version of a template.
+Set of tools for working with Mercury capsules.
+
+
+
+-- hgc-version: Creates a new version of a template.
 
 	Create a new version of a Mercury capsule based on the specified template.
 	Usage: hgc-version [Option...] template
@@ -12,12 +16,11 @@
 	  -v              --verbose                Enable verbose output.
 	  -y              --publish                Automatically publish new capsule.
 
-- If <newname> not set, increment a version number
-- Get repo
-- cvmfs_server transaction repo
-- Copy newname to oldname
-- Copy config file to temporary location
-- Modify temporary config file to adjust location of rootfs and fstab
-- lxc-start and lxc-console
-- Clean (remove cache dirs)
-- Publish (possibly - maybe prompt?)
+-- hgc-deploy: Run a capsule based on an exising template.
+
+	Launch a Mercury capsule.
+	Usage: hgc-deploy [Option...] capsule
+	  -m RESOURCE    --mount=RESOURCE         Load the specified resource into the capsule.
+	  -r REPOSITORY  --repository=REPOSITORY  Use the specified repository name (defaults to mercury.repo).
+	  -v             --verbose                Enable verbose output.
+	  -t UNION_TYPE  --union-type=UNION_TYPE  Set the type of filesystem used to implement the union mount. Currently supported are aufs and overlayfs.
