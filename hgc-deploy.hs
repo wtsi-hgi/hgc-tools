@@ -160,8 +160,8 @@ module Main where
     let unionfs = optUnionType options
     let union = Mount "none" image (Union.name unionfs) [] [Union.format unionfs sourcePath scratch]
     liftIO $ do
-      mkdir $ Cnf.scratch -- rw dir
-      mkdir $ Cnf.image -- union dir
+      mkdir $ scratch -- rw dir
+      mkdir $ image -- union dir
     liftIO $ bracket
       (mount union)
       (\_ -> umount union)
