@@ -95,12 +95,12 @@ module Main where
          -> Env ()
   deploy capsule = ask >>= \options -> do
     liftIO $ when (optVerbose options) $ updateGlobalLogger "hgc" (setLevel DEBUG)
+    liftIO $ debugM "hgc" $ "Setting safe environment."
+    liftIO $ setSafeEnv
     liftIO $ debugM "hgc" $ "Cloning capsule " ++ capsule
     realUserID <- liftIO $ User.getRealUserID
     let sourcePath = Cvmfs.base </> (optRepository options) </> capsule
     (uuid, clonePath) <- cloneCapsule capsule sourcePath
-    liftIO $ debugM "hgc" $ "Setting safe environment."
-    liftIO $ setSafeEnv
     withRoot $ 
       withUnionMount (sourcePath </> "rootfs") clonePath $ do
         addUser realUserID clonePath
