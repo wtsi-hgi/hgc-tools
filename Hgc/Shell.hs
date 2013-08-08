@@ -7,9 +7,12 @@ module Hgc.Shell (
     , touch
     , mkdir
     , safeSystem
-  ) where 
+    , setSafeEnv
+  ) where
+  import Control.Monad (liftM)
   import System.Exit
   import System.Directory
+  import System.Posix.Env
   import System.Process
 
   cp :: FilePath -> FilePath -> IO ExitCode
@@ -27,8 +30,18 @@ module Hgc.Shell (
     createProcess p >>= \(_,_,_,ph) ->
     waitForProcess ph
     where
-      p = (proc command args) { env = safeEnv }
-      safeEnv = Just [
+      p = (proc command args) { env = Just safeEnv }
+      
+
+  -- | Set a safe environment for the currently running program.
+  setSafeEnv :: IO ()
+  setSafeEnv = do
+    oldEnv <- liftM (map (\(a,_) -> a)) $ getEnvironment
+    mapM_ unsetEnv oldEnv
+    mapM_ (\(a,b) -> setEnv a b True) safeEnv
+
+  safeEnv :: [(String, String)]
+  safeEnv = [
           ("SHELL", "/bin/bash")
         , ("PATH", "/usr/local/bin:/usr/bin:/bin")
         , ("LANG", "en_GB.UTF-8")

@@ -99,6 +99,8 @@ module Main where
     realUserID <- liftIO $ User.getRealUserID
     let sourcePath = Cvmfs.base </> (optRepository options) </> capsule
     (uuid, clonePath) <- cloneCapsule capsule sourcePath
+    liftIO $ debugM "hgc" $ "Setting safe environment."
+    liftIO $ setSafeEnv
     withRoot $ 
       withUnionMount (sourcePath </> "rootfs") clonePath $ do
         addUser realUserID clonePath
