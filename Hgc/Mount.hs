@@ -10,7 +10,8 @@ where
   import System.Log.Logger
   import System.Directory (canonicalizePath
     , doesFileExist
-    , doesDirectoryExist)
+    , doesDirectoryExist
+    )
   import System.FilePath
   import qualified System.Linux.Mount as SLM
   
@@ -61,15 +62,16 @@ where
                -> IO (FilePath, FilePath) -- ^ Canoncal resource path, Created mountpoint relative to root
   mkMountPoint mountLoc resource = do
     resourceC <- canonicalizePath . dropTrailingPathSeparator $ resource
+    let resourceR = makeRelative "/" resource
     isDir <- doesDirectoryExist resourceC
     isFile <- doesFileExist resourceC
-    let mp = mountLoc </> resource
-    mkdir $ mountLoc </> (dropFileName resource)
+    let mp = mountLoc </> resourceR
+    mkdir $ mountLoc </> (dropFileName resourceR)
     case (isDir, isFile) of
       (False, True) -> debugM "hgc.mount" ("Touching file mountpoint " ++ mp) >>
-        touch mp >> return (resourceC, resource)
+        touch mp >> return (resourceC, resourceR)
       (True, False) -> debugM "hgc.mount" ("Making directory mountpoint " ++ mp) >>
-        mkdir mp >> return (resourceC, resource)
+        mkdir mp >> return (resourceC, resourceR)
       (True, True) -> ioError . userError $ 
         "Really weird: mount point is both file and directory: " ++ resourceC
       (False, False) -> ioError . userError $ 
