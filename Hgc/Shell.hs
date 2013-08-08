@@ -9,10 +9,12 @@ module Hgc.Shell (
     , safeSystem
     , setSafeEnv
   ) where
-  import Control.Monad (liftM)
+  import Control.Monad (liftM, void)
   import System.Exit
   import System.Directory
   import System.Posix.Env
+  import System.Posix.Files
+  import System.Posix.Types (FileMode())
   import System.Process
 
   cp :: FilePath -> FilePath -> IO ExitCode
@@ -34,11 +36,13 @@ module Hgc.Shell (
       
 
   -- | Set a safe environment for the currently running program.
+  --   Sets clean env, resets umask
   setSafeEnv :: IO ()
   setSafeEnv = do
     oldEnv <- liftM (map (\(a,_) -> a)) $ getEnvironment
     mapM_ unsetEnv oldEnv
     mapM_ (\(a,b) -> setEnv a b True) safeEnv
+    void $ setFileCreationMask safeUmask
 
   safeEnv :: [(String, String)]
   safeEnv = [
@@ -47,3 +51,9 @@ module Hgc.Shell (
         , ("LANG", "en_GB.UTF-8")
         , ("IFS", "")
         ]
+
+  safeUmask :: FileMode
+  safeUmask = foldl unionFileModes nullFileMode [
+      groupWriteMode
+    , otherWriteMode
+    ]
