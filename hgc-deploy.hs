@@ -24,6 +24,7 @@ module Main where
   import Control.Monad.Reader
   import Data.List (intercalate)
   import System.Console.GetOpt
+  import System.Directory (doesDirectoryExist)
   import System.FilePath ((</>))
   import System.Environment (getArgs)
   import System.IO
@@ -100,6 +101,8 @@ module Main where
     liftIO $ debugM "hgc" $ "Cloning capsule " ++ capsule
     realUserID <- liftIO $ User.getRealUserID
     let sourcePath = Cvmfs.base </> (optRepository options) </> capsule
+    liftIO $ unlessM (doesDirectoryExist sourcePath) $ ioError . userError $
+      "Source path does not exist or is not a directory: " ++ sourcePath
     (uuid, clonePath) <- cloneCapsule capsule sourcePath
     withRoot $ 
       withUnionMount (sourcePath </> "rootfs") clonePath $ do
@@ -108,6 +111,10 @@ module Main where
         withCapsule uuid (clonePath </> "config") $
           liftIO $ threadDelay 1000000 >> Lxc.console uuid 1
     return ()
+    where
+      unlessM p m = do
+        p' <- p
+        unless p' m
 
   -- | Clone the capsule into a temporary location.
   cloneCapsule :: String -- ^ Name of the capsule template.
