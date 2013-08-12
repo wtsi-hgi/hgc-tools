@@ -22,6 +22,8 @@ module Hgc.Lxc
   import System.Exit
   import System.Log.Logger
 
+  import Hgc.Shell (safeSystem)
+
   type Config = Map.Map String [String]
 
   -- | Read a configuration file into memory.
@@ -89,11 +91,11 @@ module Hgc.Lxc
             -> IO a -- ^ Operation to perform with the LXC container running.
             -> IO a
   withContainerDaemon capsule config f =
-    let start = rawSystem "lxc-start" ["-n", capsule, "-f", config, "-d"] >>= \s -> case s of
+    let start = safeSystem "lxc-start" ["-n", capsule, "-f", config, "-d"] >>= \s -> case s of
               ExitSuccess -> return ()
               ExitFailure r -> ioError . userError $ 
                 "Cannot start capsule (exit code " ++ show r ++ ")."
-        stop = rawSystem "lxc-stop" ["-n", capsule]
+        stop = safeSystem "lxc-stop" ["-n", capsule]
     in bracket 
         (debugM "hgc.lxc" ("Starting LXC container " ++ capsule) >> start)
         (\_ -> debugM "hgc.lxc" ("Stopping LXC container " ++ capsule) >> stop) 
@@ -104,7 +106,7 @@ module Hgc.Lxc
           -> IO ()
   console capsule tty = 
     debugM "hgc.lxc"  ("Attaching lxc-console to " ++ capsule) >>
-    rawSystem "lxc-console" ["-n", capsule, "-t", show tty] >>= \s -> case s of
+    safeSystem "lxc-console" ["-n", capsule, "-t", show tty] >>= \s -> case s of
       ExitSuccess -> return ()
       ExitFailure r -> ioError . userError $ 
         "Cannot start console (exit code " ++ show r ++ ")."
@@ -117,11 +119,11 @@ module Hgc.Lxc
           -> FilePath -- ^ Configuration file
           -> IO ()
   startConsole capsule config = 
-    let start = rawSystem "lxc-start" ["-n", capsule, "-f", config, "-d"] >>= \s -> case s of
+    let start = safeSystem "lxc-start" ["-n", capsule, "-f", config, "-d"] >>= \s -> case s of
                   ExitSuccess -> return ()
                   ExitFailure r -> ioError . userError $ 
                     "Cannot start capsule (exit code " ++ show r ++ ")."
-        console' = rawSystem "lxc-console" ["-n", capsule, "-t", "1"] >>= \s -> case s of
+        console' = safeSystem "lxc-console" ["-n", capsule, "-t", "1"] >>= \s -> case s of
                   ExitSuccess -> return ()
                   ExitFailure r -> ioError . userError $ 
                     "Cannot start console (exit code " ++ show r ++ ")."
