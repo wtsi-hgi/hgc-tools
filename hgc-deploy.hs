@@ -51,7 +51,7 @@ module Main where
   runEnv :: Env a -> Options -> IO a
   runEnv = runReaderT . runE  
 
-  data CleanTemp = Chown UserID | Delete
+  data CleanMethod = Chown UserID | Delete
 
   data Options = Options {
       optRepository :: String
@@ -246,7 +246,7 @@ module Main where
     liftIO $ Lxc.withContainerDaemon capsule config (runEnv f options)
 
   cleanTemp :: FilePath -- ^ Clone location
-            -> CleanTemp -- ^ Whether to delete or chown the temp dir
+            -> CleanMethod -- ^ Whether to delete or chown the temp dir
             -> IO ()
   cleanTemp clonePath Delete = do
     debugM "hgc" $ "Removing directory " ++ clonePath
