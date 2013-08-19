@@ -37,6 +37,7 @@ module Main where
 
   import qualified Hgcdeploy.Config as Cnf
   import qualified Hgc.Cvmfs as Cvmfs
+  import Hgc.Directory
   import qualified Hgc.Lxc as Lxc
   import Hgc.Mount
   import qualified Hgc.Union as Union
@@ -50,11 +51,14 @@ module Main where
   runEnv :: Env a -> Options -> IO a
   runEnv = runReaderT . runE  
 
+  data CleanMethod = Chown UserID | Delete
+
   data Options = Options {
       optRepository :: String
     , optMount :: [FilePath] -- ^ Resources to mount in the capsule.
     , optVerbose :: Bool
     , optUnionType :: Union.Union
+    , optRetainTemp :: Bool
   }
 
   defaultOptions :: Options
@@ -63,6 +67,7 @@ module Main where
     , optMount = []
     , optVerbose = False
     , optUnionType = Union.aufs
+    , optRetainTemp = False
   }
 
   setOptions :: [OptDescr (Options -> Options)]
@@ -75,7 +80,9 @@ module Main where
       , Option ['t'] ["union-type"] (ReqArg (\n o -> setUnionType o n) "UNION_TYPE")
           "Set the type of filesystem used to implement the union mount. Currently supported are aufs and overlayfs."
       , Option ['v'] ["verbose"] (NoArg (\o -> o  { optVerbose = True }))
-          "Enable verbose output."   
+          "Enable verbose output."
+      , Option [] ["retain-temp"] (NoArg (\o -> o { optRetainTemp = True }))
+          ("Retain the temporary files under "  ++ Cnf.runPath)
     ] where setUnionType o "aufs" = o { optUnionType = Union.aufs }
             setUnionType o "overlayfs" = o { optUnionType = Union.overlayfs }
             setUnionType o _ = o
@@ -101,16 +108,19 @@ module Main where
     liftIO $ debugM "hgc" $ "Cloning capsule " ++ capsule
     realUserID <- liftIO $ User.getRealUserID
     let sourcePath = Cvmfs.base </> (optRepository options) </> capsule
+        cleanMethod = if (optRetainTemp options)
+          then Chown realUserID
+          else Delete
     liftIO $ unlessM (doesDirectoryExist sourcePath) $ ioError . userError $
       "Source path does not exist or is not a directory: " ++ sourcePath
     (uuid, clonePath) <- cloneCapsule capsule sourcePath
-    withRoot $ 
+    withRoot $ do
       withUnionMount (sourcePath </> "rootfs") clonePath $ do
         addUser realUserID clonePath
         setAutologinUser realUserID clonePath
         withCapsule uuid (clonePath </> "config") $
           liftIO $ threadDelay 1000000 >> Lxc.console uuid 1
-    return ()
+      liftIO $ cleanTemp clonePath cleanMethod
     where
       unlessM p m = do
         p' <- p
@@ -234,3 +244,13 @@ module Main where
               -> Env a
   withCapsule capsule config f = ask >>= \options ->
     liftIO $ Lxc.withContainerDaemon capsule config (runEnv f options)
+
+  cleanTemp :: FilePath -- ^ Clone location
+            -> CleanMethod -- ^ Whether to delete or chown the temp dir
+            -> IO ()
+  cleanTemp clonePath Delete = do
+    debugM "hgc" $ "Removing directory " ++ clonePath
+    removeDirectoryRecursive NoFollow clonePath
+  cleanTemp clonePath (Chown uid) = do
+    debugM "hgc" $ "Changing ownership on directory " ++ clonePath
+    chownRecursive NoFollow uid (-1) clonePath
