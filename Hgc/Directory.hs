@@ -42,9 +42,7 @@ module Hgc.Directory where
         setOwner f
       chown f = do
         stat <- getStatus f
-        if (isDirectory stat)
-          then chownRecursive' f
-          else setOwner f
+        if (isDirectory stat) then chownRecursive' f else setOwner f
       getStatus = case fs of
         Follow -> getFileStatus
         NoFollow -> getSymbolicLinkStatus
