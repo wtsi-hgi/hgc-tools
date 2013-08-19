@@ -1,5 +1,4 @@
 module Hgc.Directory where
-  import Control.Monad (when)
   import System.Directory (
       getDirectoryContents
     , removeDirectory
@@ -43,7 +42,9 @@ module Hgc.Directory where
         setOwner f
       chown f = do
         stat <- getStatus f
-        when (isDirectory stat) $ chownRecursive' f
+        if (isDirectory stat)
+          then chownRecursive' f
+          else setOwner f
       getStatus = case fs of
         Follow -> getFileStatus
         NoFollow -> getSymbolicLinkStatus

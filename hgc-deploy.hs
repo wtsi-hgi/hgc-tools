@@ -81,7 +81,7 @@ module Main where
           "Set the type of filesystem used to implement the union mount. Currently supported are aufs and overlayfs."
       , Option ['v'] ["verbose"] (NoArg (\o -> o  { optVerbose = True }))
           "Enable verbose output."
-      , Option [] ["retain-temp"] (NoArg (\o -> o { optRetainTemp = False }))
+      , Option [] ["retain-temp"] (NoArg (\o -> o { optRetainTemp = True }))
           ("Retain the temporary files under "  ++ Cnf.runPath)
     ] where setUnionType o "aufs" = o { optUnionType = Union.aufs }
             setUnionType o "overlayfs" = o { optUnionType = Union.overlayfs }
@@ -114,13 +114,13 @@ module Main where
     liftIO $ unlessM (doesDirectoryExist sourcePath) $ ioError . userError $
       "Source path does not exist or is not a directory: " ++ sourcePath
     (uuid, clonePath) <- cloneCapsule capsule sourcePath
-    withRoot $ 
+    withRoot $ do
       withUnionMount (sourcePath </> "rootfs") clonePath $ do
         addUser realUserID clonePath
         setAutologinUser realUserID clonePath
         withCapsule uuid (clonePath </> "config") $
           liftIO $ threadDelay 1000000 >> Lxc.console uuid 1
-        liftIO $ cleanTemp clonePath cleanMethod
+      liftIO $ cleanTemp clonePath cleanMethod
     where
       unlessM p m = do
         p' <- p
