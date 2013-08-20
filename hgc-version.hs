@@ -1,4 +1,7 @@
 {-
+Copyright (c) 2013, Genome Research Limited
+Author: Nicholas Clarke <nicholas.clarke@sanger.ac.uk>
+
 -- Creates a new version of a template.
 hg-version <oldname> [<newname>]
 

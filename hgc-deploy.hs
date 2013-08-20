@@ -1,6 +1,7 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 {-
+Copyright (c) 2013, Genome Research Limited
+Author: Nicholas Clarke <nicholas.clarke@sanger.ac.uk>
+
 Rewrite of hgc-deploy in Haskell, aiming to be more configurable and maintainable.
 
 Steps involved:
@@ -15,6 +16,7 @@ Steps involved:
 9. Unmount the union filesystem.
 10. Clean up the temporary directory?
 -}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Main where
   import Control.Applicative

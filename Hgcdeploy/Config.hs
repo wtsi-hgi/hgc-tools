@@ -1,3 +1,7 @@
+{-
+Copyright (c) 2013, Genome Research Limited
+Author: Nicholas Clarke <nicholas.clarke@sanger.ac.uk>
+-}
 module Hgcdeploy.Config where
   import System.FilePath
 
