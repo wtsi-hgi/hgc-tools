@@ -43,10 +43,12 @@ module Hgc.Lxc
   sortConfigItem :: (String, t) -> (String, t1) -> Ordering
   sortConfigItem (k1, _) (k2, _)
     | p1 < p2 = LT
-    | p1 >= p2 = GT
+    | p1 > p2 = GT
+    | otherwise = EQ
     where 
       p1 = p k1
       p2 = p k2
+      p :: String -> Int
       p key
         | key == "lxc.utsname" = 1
         | key == "lxc.tty" = 2
