@@ -75,6 +75,7 @@ executable hgc-deploy
                 , Hgc.Mount
                 , Hgc.Shell
                 , Hgcdeploy.Config
+                , Hgc.Directory
 
   build-depends:      base >=4.6,
                       bytestring,
