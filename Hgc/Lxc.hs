@@ -37,7 +37,7 @@ module Hgc.Lxc
       case splitOn "=" a of
         key : val : [] -> Just (key,[val])
         _ -> Nothing
-    ) . filter (\a -> not $ isPrefixOf "#" a) . map (dropWhile isSpace) . lines
+    ) . filter (not . isPrefixOf "#") . map (dropWhile isSpace) . lines
 
   -- | Sort the config items (some of the network stuff relies on order!)
   sortConfigItem :: (String, t) -> (String, t1) -> Ordering
