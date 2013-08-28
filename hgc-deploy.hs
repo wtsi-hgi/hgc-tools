@@ -36,6 +36,7 @@ module Main where
   import qualified System.Posix.User as User
   import System.Random (randomIO)
   import Text.Printf (printf)
+  import Text.Regex.TDFA ((=~))
 
   import qualified Hgcdeploy.Config as Cnf
   import qualified Hgc.Cvmfs as Cvmfs
@@ -47,11 +48,11 @@ module Main where
 
   -- | Environment
   newtype Env a = Env {
-    runE :: ReaderT Options IO a
+    unEnv :: ReaderT Options IO a
   } deriving (Applicative, Functor, Monad, MonadIO, MonadReader Options)
 
   runEnv :: Env a -> Options -> IO a
-  runEnv = runReaderT . runE  
+  runEnv = runReaderT . unEnv  
 
   data CleanMethod = Chown UserID | Delete
 
@@ -105,9 +106,15 @@ module Main where
          -> Env ()
   deploy capsule = ask >>= \options -> do
     liftIO $ when (optVerbose options) $ updateGlobalLogger "hgc" (setLevel DEBUG)
-    liftIO $ debugM "hgc" $ "Setting safe environment."
-    liftIO $ setSafeEnv
-    liftIO $ debugM "hgc" $ "Cloning capsule " ++ capsule
+    liftIO $ debugM "hgc" $ "Deploying capsule " ++ capsule
+    liftIO $ do
+      debugM "hgc" $ "Setting safe environment."
+      setSafeEnv
+    liftIO $ do
+      unless (capsule =~ validFileRegex) $ ioError . userError $
+        "Invalid capsule name: " ++ capsule
+      unless ((optRepository options) =~ validFileRegex) $ ioError . userError $
+        "Invalid repository name: " ++ (optRepository options)
     realUserID <- liftIO $ User.getRealUserID
     let sourcePath = Cvmfs.base </> (optRepository options) </> capsule
         cleanMethod = if (optRetainTemp options)
@@ -127,6 +134,7 @@ module Main where
       unlessM p m = do
         p' <- p
         unless p' m
+      validFileRegex = "^[A-Za-z0-9_][A-Za-z0-9._-]*$"
 
   -- | Clone the capsule into a temporary location.
   cloneCapsule :: String -- ^ Name of the capsule template.

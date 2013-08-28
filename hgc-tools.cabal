@@ -88,4 +88,5 @@ executable hgc-deploy
                       process,
                       random,
                       split,
+                      regex-tdfa,
                       unix
