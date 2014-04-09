@@ -1,3 +1,5 @@
 dist/
 hgc-tools.sublime-project
 hgc-tools.sublime-workspace
+.cabal-sandbox/
+cabal.sandbox.config
