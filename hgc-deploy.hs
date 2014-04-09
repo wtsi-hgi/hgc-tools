@@ -253,7 +253,7 @@ module Main where
               -> Env a -- ^ Operation to perform with running capsule.
               -> Env a
   withCapsule capsule config f = ask >>= \options ->
-    liftIO $ Lxc.withContainerDaemon capsule config (runEnv f options)
+    liftIO $ Lxc.withContainerDaemon capsule config "/sbin/init" (runEnv f options)
 
   cleanTemp :: FilePath -- ^ Clone location
             -> CleanMethod -- ^ Whether to delete or chown the temp dir
