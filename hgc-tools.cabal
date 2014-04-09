@@ -54,7 +54,7 @@ executable hgc-version
                 , Hgc.Mount
   
   -- Other library packages from which modules are imported.
-  build-depends:      base ==4.6.*,
+  build-depends:      base >=4.6,
                       bytestring,
                       containers,
                       directory,
