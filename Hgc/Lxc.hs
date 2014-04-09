@@ -88,7 +88,7 @@ module Hgc.Lxc
 
   {- | Start the container and execute the given operation with it running.
        Typically you would start the console and this will ensure that the container
-       gets stopped when you detatch from the console.
+       gets stopped when you detach from the console.
   -}
   withContainerDaemon :: String -- ^ Name of the LXC container
             -> FilePath -- ^ Configuration file
