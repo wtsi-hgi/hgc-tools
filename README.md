@@ -16,7 +16,7 @@ Set of tools for working with Mercury capsules.
 	  -v              --verbose                Enable verbose output.
 	  -y              --publish                Automatically publish new capsule.
 
--- hgc-deploy: Run a capsule based on an exising template.
+-- hgc-deploy: Run a capsule based on an exising template (intended to be installed suid root). 
 
 		Launch a Mercury capsule.
 		Usage: hgc-deploy [Option...] capsule
