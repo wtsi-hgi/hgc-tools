@@ -55,6 +55,7 @@ module Main where
   runEnv = runReaderT . unEnv  
 
   data CleanMethod = Chown UserID | Delete
+  data RunMethod = Interactive | Command String
 
   data Options = Options {
       optRepository :: String
@@ -93,20 +94,24 @@ module Main where
   usage :: String
   usage = usageInfo header setOptions
     where header = "Launch a Mercury capsule.\n" ++
-                    "Usage: hgc-deploy [Option...] capsule"
+                    "Usage: hgc-deploy [Option...] capsule [command]"
 
   main :: IO ()
   main = do
     args <- getArgs
     case (getOpt Permute setOptions args) of
-      (o,[f],[]) -> runEnv (deploy f) (foldl (flip id) defaultOptions o)
+      (o,[f],[]) -> runEnv (deploy f Interactive) (foldl (flip id) defaultOptions o)
+      (o,[f,c],[]) -> runEnv (deploy f $ Command c) (foldl (flip id) defaultOptions o)
       (_,_,errs) -> putStrLn (concat errs ++ "\n" ++ usage)
 
   deploy :: String -- ^ Capsule
+         -> RunMethod -- ^ Command
          -> Env ()
-  deploy capsule = ask >>= \options -> do
+  deploy capsule command = ask >>= \options -> do
     liftIO $ when (optVerbose options) $ updateGlobalLogger "hgc" (setLevel DEBUG)
-    liftIO $ debugM "hgc" $ "Deploying capsule " ++ capsule
+    liftIO . debugM "hgc" $ case command of
+      Interactive -> "Deploying capsule " ++ capsule ++ " interactively"
+      Command c -> "Deploying capsule " ++ capsule ++ " with command " ++ c
     liftIO $ do
       debugM "hgc" $ "Setting safe environment."
       setSafeEnv
@@ -127,8 +132,11 @@ module Main where
       withUnionMount (sourcePath </> "rootfs") clonePath $ do
         addUser realUserID clonePath
         setAutologinUser realUserID clonePath
-        withCapsule uuid (clonePath </> "config") $
-          liftIO $ threadDelay 1000000 >> Lxc.console uuid 1
+        let config = (clonePath </> "config")
+        case command of
+          Interactive -> withDetachedCapsule uuid config $
+            liftIO $ threadDelay 1000000 >> Lxc.console uuid 1
+          Command c -> liftIO $ Lxc.runCommand uuid config c
       liftIO $ cleanTemp clonePath cleanMethod
     where
       unlessM p m = do
@@ -248,12 +256,12 @@ module Main where
           "Cannot set autologin user (exit code " ++ show r ++ ")."
 
   -- | Perform the given operation with a running capsule.
-  withCapsule :: String -- ^ Capsule name.
+  withDetachedCapsule :: String -- ^ Capsule name.
               -> FilePath -- ^ Config file location.
               -> Env a -- ^ Operation to perform with running capsule.
               -> Env a
-  withCapsule capsule config f = ask >>= \options ->
-    liftIO $ Lxc.withContainerDaemon capsule config "/sbin/init" (runEnv f options)
+  withDetachedCapsule capsule config f = ask >>= \options ->
+    liftIO $ Lxc.withContainerDaemon capsule config (runEnv f options)
 
   cleanTemp :: FilePath -- ^ Clone location
             -> CleanMethod -- ^ Whether to delete or chown the temp dir
